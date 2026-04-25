@@ -1,0 +1,43 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+
+# iOS generated
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Secrets — never commit these
+*.p12
+*.mobileprovision
+*.keystore
+.env
+.env.*
+secrets/
+
+# macOS junk
+.DS_Store
+**/.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.log
+*.swp
+*.orig
+
+# Test
+coverage/

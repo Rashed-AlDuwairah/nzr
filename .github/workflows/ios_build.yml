@@ -1,0 +1,73 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual build'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  build-ios:
+    name: Build nzr IPA
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run code generator (Isar)
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Install iOS pods
+        run: |
+          cd ios
+          pod install --repo-update
+        env:
+          LANG: en_US.UTF-8
+
+      - name: Build iOS (no signing)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r nzr.ipa Payload/
+          rm -rf Payload/
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nzr-IPA-${{ github.run_number }}
+          path: nzr.ipa
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Build summary
+        run: |
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**IPA:** nzr-IPA-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download the IPA from the Artifacts section above." >> $GITHUB_STEP_SUMMARY

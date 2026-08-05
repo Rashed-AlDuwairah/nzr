@@ -729,7 +729,7 @@ function sampleText(text, font, w, h, step) {
 }
 
 function buildTextParticles() {
-  const en = sampleText('Happy Birthday Noor', "300 92px 'Cormorant Garamond', Georgia, serif", 1280, 200, 3);
+  const en = sampleText('Happy Birthday Noura', "300 92px 'Cormorant Garamond', Georgia, serif", 1280, 200, 3);
   const ar = sampleText('نُورة', "400 250px 'Aref Ruqaa', 'Amiri', serif", 1280, 400, 3);
   const N = 3200;
   const W = 165; // world width of the writing
@@ -746,10 +746,10 @@ function buildTextParticles() {
     start[i*3+2] = Math.cos(ph) * r * 0.4;
     const pa = en[i % en.length], pb = ar[i % ar.length];
     ta[i*3]   = pa[0] * W + (Math.random()-0.5) * 0.7;
-    ta[i*3+1] = pa[1] * W + (Math.random()-0.5) * 0.7;
+    ta[i*3+1] = pa[1] * W + 46.0 + (Math.random()-0.5) * 0.7;
     ta[i*3+2] = (Math.random()-0.5) * 2.5;
     tb[i*3]   = pb[0] * W + (Math.random()-0.5) * 0.7;
-    tb[i*3+1] = pb[1] * W * 1.05 + 38.0 + (Math.random()-0.5) * 0.7;
+    tb[i*3+1] = pb[1] * W * 1.05 + 46.0 + (Math.random()-0.5) * 0.7;
     tb[i*3+2] = (Math.random()-0.5) * 2.5;
     rnd[i] = Math.random();
   }
@@ -970,14 +970,14 @@ const S = {
 const $ = id => document.getElementById(id);
 const chapters = [$('ch1'), $('ch2'), $('ch3'), $('ch4'), $('ch5'), $('ch6'), $('ch7'), $('ch8')];
 const chapterWindows = [
-  [0.012, 0.090],
-  [0.140, 0.220],
-  [0.270, 0.350],
-  [0.420, 0.500],
-  [0.560, 0.635],
-  [0.665, 0.740],
-  [0.770, 0.835],
-  [0.855, 0.915],
+  [0.010, 0.105],
+  [0.130, 0.230],
+  [0.258, 0.358],
+  [0.386, 0.486],
+  [0.514, 0.614],
+  [0.642, 0.734],
+  [0.760, 0.848],
+  [0.862, 0.920],
 ];
 const progDots = Array.from(document.querySelectorAll('#prog i'));
 
@@ -1178,6 +1178,7 @@ function frame() {
     // cinematic virtual scroll
     S.scroll += (S.scrollT - S.scroll) * (1 - Math.exp(-dt * 1.9));
     const p = S.scroll;
+    if (!hintKilled && p > 0.012) { hintKilled = true; $('hint').classList.remove('on'); }
 
     camCurve.getPoint(p, V3);
     lookCurve.getPoint(p, V3b);

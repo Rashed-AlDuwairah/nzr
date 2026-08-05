@@ -730,7 +730,7 @@ function sampleText(text, font, w, h, step) {
 
 function buildTextParticles() {
   const en = sampleText('Happy Birthday Noor', "300 92px 'Cormorant Garamond', Georgia, serif", 1280, 200, 3);
-  const ar = sampleText('نُــورة', "400 250px 'Amiri', serif", 1280, 400, 3);
+  const ar = sampleText('نُورة', "400 250px 'Aref Ruqaa', 'Amiri', serif", 1280, 400, 3);
   const N = 3200;
   const W = 165; // world width of the writing
   const start = new Float32Array(N * 3);
@@ -749,7 +749,7 @@ function buildTextParticles() {
     ta[i*3+1] = pa[1] * W + (Math.random()-0.5) * 0.7;
     ta[i*3+2] = (Math.random()-0.5) * 2.5;
     tb[i*3]   = pb[0] * W + (Math.random()-0.5) * 0.7;
-    tb[i*3+1] = pb[1] * W * 1.05 + 6.0 + (Math.random()-0.5) * 0.7;
+    tb[i*3+1] = pb[1] * W * 1.05 + 38.0 + (Math.random()-0.5) * 0.7;
     tb[i*3+2] = (Math.random()-0.5) * 2.5;
     rnd[i] = Math.random();
   }
@@ -803,7 +803,7 @@ function buildTextParticles() {
 }
 if (document.fonts && document.fonts.ready) {
   Promise.race([
-    document.fonts.load("300 92px 'Cormorant Garamond'").then(() => document.fonts.load("400 170px 'Amiri'")),
+    document.fonts.load("300 92px 'Cormorant Garamond'").then(() => document.fonts.load("400 250px 'Aref Ruqaa'")),
     new Promise(r => setTimeout(r, 3500)),
   ]).then(buildTextParticles).catch(buildTextParticles);
 } else {
@@ -968,7 +968,17 @@ const S = {
   slowFrames: 0,
 };
 const $ = id => document.getElementById(id);
-const chapters = [$('ch1'), $('ch2'), $('ch3'), $('ch4')];
+const chapters = [$('ch1'), $('ch2'), $('ch3'), $('ch4'), $('ch5'), $('ch6'), $('ch7'), $('ch8')];
+const chapterWindows = [
+  [0.012, 0.090],
+  [0.140, 0.220],
+  [0.270, 0.350],
+  [0.420, 0.500],
+  [0.560, 0.635],
+  [0.665, 0.740],
+  [0.770, 0.835],
+  [0.855, 0.915],
+];
 const progDots = Array.from(document.querySelectorAll('#prog i'));
 
 $('begin').addEventListener('click', () => {
@@ -990,7 +1000,7 @@ $('audioBtn').addEventListener('click', () => {
 let hintShown = false, hintKilled = false;
 function onScrollInput(dy) {
   if (S.mode !== 'journey') return;
-  S.scrollT = THREE.MathUtils.clamp(S.scrollT + dy * 0.00004, 0, 1);
+  S.scrollT = THREE.MathUtils.clamp(S.scrollT + dy * 0.00003, 0, 1);
   if (!hintKilled && S.scrollT > 0.01) {
     hintKilled = true;
     $('hint').classList.remove('on');
@@ -1206,18 +1216,16 @@ function frame() {
 
     // star-writing
     if (textMat) {
-      textMat.uniforms.uF1.value = ease(clamp01((p - 0.845) / 0.075));
-      textMat.uniforms.uF2.value = ease(clamp01((p - 0.935) / 0.05));
+      textMat.uniforms.uF1.value = ease(clamp01((p - 0.920) / 0.055));
+      textMat.uniforms.uF2.value = ease(clamp01((p - 0.972) / 0.026));
     }
 
     // overlay text windows
-    setChapter(chapters[0], p > 0.015 && p < 0.13);
-    setChapter(chapters[1], p > 0.20 && p < 0.34);
-    setChapter(chapters[2], p > 0.40 && p < 0.55);
-    setChapter(chapters[3], p > 0.61 && p < 0.76);
-    $('finale').classList.toggle('on', p > 0.985);
-    const chIdx = p < 0.16 ? 0 : p < 0.38 ? 1 : p < 0.58 ? 2 : 3;
-    progDots.forEach((d, i) => d.classList.toggle('lit', i <= (p > 0.82 ? 4 : chIdx)));
+    for (let i = 0; i < chapters.length; i++) {
+      setChapter(chapters[i], p > chapterWindows[i][0] && p < chapterWindows[i][1]);
+    }
+    $('finale').classList.toggle('on', p > 0.99);
+    progDots.forEach((d, i) => d.classList.toggle('lit', p > i * 0.2 + 0.01));
   }
 
   // camera shake (intro fall)

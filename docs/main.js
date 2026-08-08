@@ -7,6 +7,7 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { ShaderPass } from './vendor/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
+import { SkyNight } from './sky.js';
 
 // ---------------------------------------------------------- setup
 const canvas = document.getElementById('stage');
@@ -956,9 +957,14 @@ const AudioEngine = {
   },
 };
 
+// ---------------------------------------------------------- v3: her real sky
+const skyNight = new SkyNight(scene, camera);
+const journeyGroups = [sky, starsFar, starsNear, dust, nebulaGroup, planetGroup, homeGroup, meteorGroup, textGroup];
+let skyLoadStarted = false;
+
 // ---------------------------------------------------------- state & input
 const S = {
-  mode: 'title',        // title -> intro -> journey
+  mode: 'title',        // title -> intro -> journey -> sky
   t0: 0,                // intro clock start
   scroll: 0, scrollT: 0,
   mouse: new THREE.Vector2(), mouseS: new THREE.Vector2(),
@@ -992,6 +998,57 @@ $('begin').addEventListener('click', () => {
   meteorGroup.visible = true;
 });
 
+// ---------- v3 gate & sky-mode input
+$('gate').addEventListener('click', () => {
+  if (S.mode !== 'journey') return;
+  $('skyIntro').classList.add('on');
+});
+$('siStart').addEventListener('click', () => {
+  if (!skyNight.ready) { setTimeout(() => $('siStart').click(), 400); return; }
+  $('skyIntro').classList.remove('on');
+  $('flash').style.transition = 'opacity 1.2s ease';
+  $('flash').style.opacity = 1;
+  setTimeout(() => {
+    S.mode = 'sky';
+    document.body.classList.add('sky');
+    for (const g of journeyGroups) g.visible = false;
+    for (const s of shooters) { s.life = 0; s.mesh.visible = false; }
+    $('finale').classList.remove('on');
+    $('prog').classList.remove('on');
+    chapters.forEach(c => c.classList.remove('on'));
+    bloom.strength = 0.8;
+    renderer.toneMappingExposure = 1.0;
+    finalPass.uniforms.uWarm.value = 0.08;
+    finalPass.uniforms.uCA.value = 0.0009;
+    skyNight.enter();
+    $('flash').style.opacity = 0;
+  }, 1200);
+});
+$('memClose').addEventListener('click', () => $('memCard').classList.remove('on'));
+$('gyroBtn').addEventListener('click', () => skyNight.enableGyro());
+
+// drag / tap routing for sky mode
+const P = { down: false, x: 0, y: 0, sx: 0, sy: 0, t: 0, moved: 0 };
+addEventListener('pointerdown', e => {
+  if (S.mode !== 'sky') return;
+  P.down = true; P.x = P.sx = e.clientX; P.y = P.sy = e.clientY;
+  P.t = performance.now(); P.moved = 0;
+});
+addEventListener('pointermove', e => {
+  if (S.mode !== 'sky' || !P.down) return;
+  const dx = e.clientX - P.x, dy = e.clientY - P.y;
+  P.moved += Math.abs(dx) + Math.abs(dy);
+  skyNight.drag(dx, dy);
+  P.x = e.clientX; P.y = e.clientY;
+});
+addEventListener('pointerup', e => {
+  if (S.mode !== 'sky' || !P.down) return;
+  P.down = false;
+  if (P.moved < 10 && performance.now() - P.t < 500) {
+    skyNight.tap(e.clientX, e.clientY, innerWidth, innerHeight);
+  }
+});
+
 $('audioBtn').addEventListener('click', () => {
   const m = AudioEngine.toggleMute();
   $('audioBtn').textContent = m ? '∅' : '♪';
@@ -1006,7 +1063,10 @@ function onScrollInput(dy) {
     $('hint').classList.remove('on');
   }
 }
-addEventListener('wheel', e => onScrollInput(e.deltaY), { passive: true });
+addEventListener('wheel', e => {
+  if (S.mode === 'sky') { skyNight.zoom(e.deltaY * 0.012); return; }
+  onScrollInput(e.deltaY);
+}, { passive: true });
 let touchY = null;
 addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
 addEventListener('touchmove', e => {
@@ -1215,6 +1275,12 @@ function frame() {
       S.shooterClock = inShower ? 0.55 + Math.random() * 0.5 : 5 + Math.random() * 4;
     }
 
+    // preload her real sky before the gate appears
+    if (!skyLoadStarted && p > 0.7) {
+      skyLoadStarted = true;
+      skyNight.load().catch(err => console.warn('sky load failed', err));
+    }
+
     // star-writing
     if (textMat) {
       textMat.uniforms.uF1.value = ease(clamp01((p - 0.920) / 0.055));
@@ -1227,6 +1293,10 @@ function frame() {
     }
     $('finale').classList.toggle('on', p > 0.99);
     progDots.forEach((d, i) => d.classList.toggle('lit', p > i * 0.2 + 0.01));
+  }
+
+  else if (S.mode === 'sky') {
+    skyNight.update(dt, time);
   }
 
   // camera shake (intro fall)

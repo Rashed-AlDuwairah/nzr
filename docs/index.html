@@ -190,6 +190,93 @@
     transform:scale(1.45);
   }
 
+  /* ======== v3: her real sky ======== */
+  #gate {
+    pointer-events:auto; cursor:pointer;
+    font-family:'Aref Ruqaa','Amiri',serif;
+    font-size:clamp(.9rem, 2vh, 1.15rem);
+    color:#ffe3b8; margin-top:1vh;
+    padding:.65rem 2.4rem;
+    border:1px solid rgba(255,205,140,.35); border-radius:100px;
+    background:rgba(60,35,10,.25); backdrop-filter:blur(6px);
+    text-shadow:0 0 16px rgba(255,190,110,.8);
+    opacity:0; transform:translateY(12px);
+    transition:opacity 2.5s ease 2.8s, transform 2.5s ease 2.8s, box-shadow .5s ease;
+  }
+  #finale.on #gate { opacity:1; transform:none; animation:breathe 4s ease-in-out 6s infinite; }
+  #gate:hover { box-shadow:0 0 40px rgba(255,190,110,.35); }
+
+  #skyIntro { z-index:45; background:rgba(2,2,8,.55); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity 2s ease; }
+  #skyIntro.on { opacity:1; pointer-events:auto; }
+  .si-box { text-align:center; padding:0 8vw; display:flex; flex-direction:column; gap:2.2vh; align-items:center; }
+  .si-title { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.3rem,3.4vh,2rem);
+    color:#dfe6ff; text-shadow:0 0 30px rgba(140,160,255,.5); }
+  .si-body { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1rem,2.6vh,1.5rem);
+    line-height:2.2; color:#c9cfec; }
+  .si-hints { font-family:'Amiri',serif; font-size:clamp(.8rem,1.9vh,1rem); color:rgba(200,205,240,.55); }
+  #siStart { pointer-events:auto; cursor:pointer;
+    font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1rem,2.4vh,1.3rem);
+    color:#e8ecff; padding:.6rem 2.6rem; border:1px solid rgba(160,175,255,.4);
+    border-radius:100px; background:rgba(30,35,80,.3);
+    text-shadow:0 0 14px rgba(160,175,255,.9); }
+
+  #labels { position:fixed; inset:0; z-index:15; pointer-events:none; }
+  .starLabel { position:absolute; top:0; left:0; margin-left:-3em;
+    font-family:'Amiri',serif; font-size:clamp(.68rem,1.7vh,.9rem);
+    color:rgba(170,190,235,.9); text-shadow:0 1px 8px #000;
+    opacity:0; transition:opacity .6s ease; white-space:nowrap;
+    width:6em; text-align:center; }
+  .starLabel.jup { color:rgba(255,225,180,.9); }
+
+  #skyHud { position:fixed; left:22px; bottom:calc(6.5vh + 16px); z-index:26;
+    display:none; align-items:center; gap:14px; direction:ltr; }
+  body.sky #skyHud { display:flex; }
+  #skyHud span { font-family:'Amiri',serif; font-size:.95rem;
+    color:rgba(230,225,255,.8); text-shadow:0 1px 8px #000;
+    background:rgba(15,12,40,.4); padding:.25rem .8rem; border-radius:100px;
+    border:1px solid rgba(150,150,220,.2); backdrop-filter:blur(4px); }
+  #gyroBtn { width:36px; height:36px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(150,160,255,.3); background:rgba(20,18,55,.4);
+    color:#cfd6ff; font-size:15px; display:none; }
+  @media (pointer:coarse) { #gyroBtn { display:block; } }
+
+  #wishToast { position:fixed; top:calc(6.5vh + 20px); left:50%; transform:translateX(-50%) translateY(-8px);
+    z-index:27; font-family:'Aref Ruqaa','Amiri',serif; font-size:1rem;
+    color:#ffe6b0; text-shadow:0 0 18px rgba(255,200,120,.9);
+    opacity:0; pointer-events:none; }
+  #wishToast.on { animation:toast 2.4s ease forwards; }
+  @keyframes toast { 0%{opacity:0; transform:translateX(-50%) translateY(-8px);}
+    15%{opacity:1; transform:translateX(-50%) translateY(0);}
+    75%{opacity:1;} 100%{opacity:0; transform:translateX(-50%) translateY(-6px);} }
+
+  #memCard { z-index:48; background:rgba(2,2,10,.45); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity .8s ease; }
+  #memCard.on { opacity:1; pointer-events:auto; }
+  .mc-box { text-align:center; max-width:640px; padding:5vh 8vw;
+    display:flex; flex-direction:column; gap:2vh; align-items:center;
+    border:1px solid rgba(255,210,150,.22); border-radius:24px;
+    background:rgba(20,14,8,.55); box-shadow:0 0 80px rgba(255,190,110,.12); }
+  .mc-star { font-size:2rem; color:#ffd98f; text-shadow:0 0 24px rgba(255,200,120,1);
+    animation:breathe 3s ease-in-out infinite; }
+  #memNum { font-family:'Amiri',serif; font-size:clamp(.85rem,2vh,1rem); color:rgba(255,220,170,.7); }
+  #memText { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.15rem,3.2vh,1.8rem);
+    line-height:2.1; color:#ffeedd; text-shadow:0 0 26px rgba(255,190,110,.3); }
+  #memClose { pointer-events:auto; cursor:pointer; font-family:'Amiri',serif;
+    font-size:clamp(.85rem,2vh,1rem); color:#d8c7a8; padding:.4rem 1.8rem;
+    border:1px solid rgba(255,210,150,.3); border-radius:100px; }
+
+  #skyFinal { z-index:24; flex-direction:column; justify-content:flex-end;
+    padding:0 8vw 9vh; text-align:center; gap:1.8vh;
+    opacity:0; pointer-events:none; transition:opacity 4s ease; }
+  #skyFinal.on { opacity:1; }
+  body.sky #finale { transition:opacity .9s ease; opacity:0 !important; }
+  body.sky #hint { opacity:0 !important; }
+  .sf-t1 { font-family:'Amiri',serif; font-size:clamp(.9rem,2.2vh,1.1rem);
+    letter-spacing:0; color:rgba(255,225,175,.75); }
+  .sf-t2 { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.1rem,3vh,1.7rem);
+    line-height:2.2; color:#fff0dc; text-shadow:0 0 34px rgba(255,190,110,.4), 0 2px 22px #000; }
+
   #fallback {
     position:fixed; inset:0; z-index:100; display:none;
     align-items:center; justify-content:center; text-align:center;
@@ -256,6 +343,46 @@
   <img id="noorPhoto" src="./noor.jpg" alt="نورة">
   <div class="msg">هذهِ الهديَّةُ لا تُشبِهُ غيرَها… لأنَّها لكِ وحدَكِ، يا نورَ هذا الكون.<br>لو مَلَكتُ الكونَ كلَّهُ لما وجدتُ فيهِ أجملَ منكِ.<br>كلُّ عامٍ وأنتِ نُوري الذي لا ينطفئ.</div>
   <div class="sig">HAPPY BIRTHDAY, MY UNIVERSE</div>
+  <div id="gate">✦ اعبري إلى سماءِ ليلتِكِ الأولى ✦</div>
+</div>
+
+<!-- ======== v3: her real sky ======== -->
+<div class="layer" id="skyIntro">
+  <div class="si-box">
+    <div class="si-title">سماءُ الرياض · ليلة ١٣ / ٨ / ٢٠٠٥</div>
+    <div class="si-body">هذهِ ليست سماءً خيالية.<br>
+      كلُّ نجمةٍ هنا كانت في مكانِها هذا تمامًا ليلةَ وُلدتِ.<br>
+      وفي كلِّ عامٍ في ليلتِكِ، تُمطرُ السماءُ شهبَ البرشاويات…<br>الكونُ يحتفلُ فعلًا.</div>
+    <div class="si-hints">اسحبي لتدوري في السماء ✦ المسي الشهبَ لتلتقطي أمنية ✦ وابحثي عن ٢١ نجمةً ذهبية</div>
+    <div id="siStart">افتحي عينيكِ</div>
+  </div>
+</div>
+
+<div id="labels"></div>
+
+<div id="skyHud">
+  <span id="memCount">0 / 21 ✦</span>
+  <span id="wishCount">0 ☄</span>
+  <button id="gyroBtn" title="حرّكي جوالك لتتحرك السماء">🧭</button>
+</div>
+
+<div id="wishToast">أُمنيةٌ التُقِطَت ☄</div>
+
+<div class="layer" id="memCard">
+  <div class="mc-box">
+    <div class="mc-star">✦</div>
+    <div id="memNum"></div>
+    <div id="memText"></div>
+    <div id="memClose">أُكمِلي البحث</div>
+  </div>
+</div>
+
+<div class="layer" id="skyFinal">
+  <div class="sf-box">
+    <div class="sf-t1">اكتملَ الواحدُ والعشرون</div>
+    <div class="sf-t2">في ليلةِ ١٣ / ٨ … السماءُ كلُّها تعرفُ اسمَكِ.<br>
+      هذهِ نجمتُكِ يا نُورة — ما دامَت في السماء، فأنا أُحبُّكِ.</div>
+  </div>
 </div>
 
 <div id="hint"><span>مرِّر لتُكمِلَ الرحلة</span><div class="line"></div></div>

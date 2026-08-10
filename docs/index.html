@@ -253,29 +253,57 @@
   #memCard { z-index:48; background:rgba(2,2,10,.45); backdrop-filter:blur(3px);
     opacity:0; pointer-events:none; transition:opacity .8s ease; }
   #memCard.on { opacity:1; pointer-events:auto; }
-  .mc-box { text-align:center; max-width:640px; padding:5vh 8vw;
-    display:flex; flex-direction:column; gap:2vh; align-items:center;
+  .mc-box { text-align:center; max-width:680px; padding:4vh 7vw;
+    display:flex; flex-direction:column; gap:1.8vh; align-items:center;
     border:1px solid rgba(255,210,150,.22); border-radius:24px;
-    background:rgba(20,14,8,.55); box-shadow:0 0 80px rgba(255,190,110,.12); }
-  .mc-star { font-size:2rem; color:#ffd98f; text-shadow:0 0 24px rgba(255,200,120,1);
+    background:rgba(20,14,8,.6); box-shadow:0 0 80px rgba(255,190,110,.12); }
+  .mc-star { font-size:1.8rem; color:#ffd98f; text-shadow:0 0 24px rgba(255,200,120,1);
     animation:breathe 3s ease-in-out infinite; }
-  #memNum { font-family:'Amiri',serif; font-size:clamp(.85rem,2vh,1rem); color:rgba(255,220,170,.7); }
-  #memText { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.15rem,3.2vh,1.8rem);
+  #stName { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.2rem,3vh,1.7rem);
+    color:#ffe8c8; text-shadow:0 0 24px rgba(255,200,120,.5); }
+  #stFact { font-family:'Amiri',serif; font-size:clamp(.8rem,2vh,1rem);
+    color:rgba(200,215,255,.75); line-height:1.9; }
+  #stPersonal { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1rem,2.6vh,1.4rem);
     line-height:2.1; color:#ffeedd; text-shadow:0 0 26px rgba(255,190,110,.3); }
+  #stReasons { display:flex; flex-direction:column; gap:.9vh;
+    font-family:'Amiri',serif; font-size:clamp(.9rem,2.2vh,1.15rem);
+    color:rgba(255,232,200,.85); line-height:1.9; }
   #memClose { pointer-events:auto; cursor:pointer; font-family:'Amiri',serif;
     font-size:clamp(.85rem,2vh,1rem); color:#d8c7a8; padding:.4rem 1.8rem;
     border:1px solid rgba(255,210,150,.3); border-radius:100px; }
 
-  #skyFinal { z-index:24; flex-direction:column; justify-content:flex-end;
-    padding:0 8vw 9vh; text-align:center; gap:1.8vh;
-    opacity:0; pointer-events:none; transition:opacity 4s ease; }
-  #skyFinal.on { opacity:1; }
+  /* exposure ring: hold your finger on the star until the light completes */
+  #expRing { position:fixed; z-index:26; width:74px; height:74px;
+    margin:-37px 0 0 -37px; border-radius:50%; pointer-events:none; opacity:0;
+    background:conic-gradient(rgba(255,220,150,.95) calc(var(--p, 0) * 360deg), rgba(255,220,150,.12) 0);
+    -webkit-mask:radial-gradient(circle, transparent 62%, #000 66%, #000 100%);
+    mask:radial-gradient(circle, transparent 62%, #000 66%, #000 100%);
+    filter:drop-shadow(0 0 10px rgba(255,210,140,.7));
+    transition:opacity .3s ease; }
+
+  #whisper { position:fixed; top:calc(6.5vh + 22px); left:50%; transform:translateX(-50%);
+    z-index:26; max-width:88vw; text-align:center;
+    font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(.9rem,2.2vh,1.15rem);
+    color:rgba(225,225,250,.85); text-shadow:0 1px 12px #000, 0 0 24px rgba(150,160,255,.4);
+    opacity:0; transition:opacity 1.6s ease; pointer-events:none; line-height:1.9; }
+  #whisper.on { opacity:1; }
+
+  #lightPhoto { z-index:47; flex-direction:column;
+    background:rgba(2,2,8,.35);
+    opacity:0; pointer-events:none; transition:opacity 4.5s ease; }
+  #lightPhoto.on { opacity:1; }
+  .lp-box { display:flex; flex-direction:column; align-items:center; gap:2.4vh;
+    text-align:center; padding:0 8vw; }
+  .lp-t1 { font-family:'Amiri',serif; font-size:clamp(.9rem,2.2vh,1.15rem);
+    color:rgba(255,228,185,.8); text-shadow:0 1px 12px #000; }
+  #usPhoto { width:clamp(180px, 36vh, 340px); max-width:80vw;
+    border-radius:14px; border:1px solid rgba(255,215,170,.5);
+    box-shadow:0 0 60px rgba(255,190,110,.35), 0 0 160px rgba(255,170,90,.15);
+    filter:sepia(.14) saturate(1.04); }
+  .lp-t2 { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.1rem,3vh,1.7rem);
+    line-height:2.2; color:#fff0dc; text-shadow:0 0 34px rgba(255,190,110,.45), 0 2px 22px #000; }
   body.sky #finale { transition:opacity .9s ease; opacity:0 !important; }
   body.sky #hint { opacity:0 !important; }
-  .sf-t1 { font-family:'Amiri',serif; font-size:clamp(.9rem,2.2vh,1.1rem);
-    letter-spacing:0; color:rgba(255,225,175,.75); }
-  .sf-t2 { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.1rem,3vh,1.7rem);
-    line-height:2.2; color:#fff0dc; text-shadow:0 0 34px rgba(255,190,110,.4), 0 2px 22px #000; }
 
   #fallback {
     position:fixed; inset:0; z-index:100; display:none;
@@ -368,20 +396,25 @@
 
 <div id="wishToast">أُمنيةٌ التُقِطَت ☄</div>
 
+<div id="expRing"></div>
+<div id="whisper"></div>
+
 <div class="layer" id="memCard">
   <div class="mc-box">
     <div class="mc-star">✦</div>
-    <div id="memNum"></div>
-    <div id="memText"></div>
-    <div id="memClose">أُكمِلي البحث</div>
+    <div id="stName"></div>
+    <div id="stFact"></div>
+    <div id="stPersonal"></div>
+    <div id="stReasons"></div>
+    <div id="memClose">أُكمِلي رحلةَ الضوء</div>
   </div>
 </div>
 
-<div class="layer" id="skyFinal">
-  <div class="sf-box">
-    <div class="sf-t1">اكتملَ الواحدُ والعشرون</div>
-    <div class="sf-t2">في ليلةِ ١٣ / ٨ … السماءُ كلُّها تعرفُ اسمَكِ.<br>
-      هذهِ نجمتُكِ يا نُورة — ما دامَت في السماء، فأنا أُحبُّكِ.</div>
+<div class="layer" id="lightPhoto">
+  <div class="lp-box">
+    <div class="lp-t1">هذا ما كانَ ضوءُ عامِ ٢٠٠٥ يحمِلُهُ إليكِ طوالَ الطريق…</div>
+    <img id="usPhoto" src="./us.jpg" onerror="this.onerror=null;this.src='./noor.jpg'" alt="نحن">
+    <div class="lp-t2">نحنُ… قبلَ أن نلتقي.<br>كانَ الكونُ يعرفُ قبلَنا.</div>
   </div>
 </div>
 

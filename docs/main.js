@@ -941,6 +941,26 @@ const AudioEngine = {
     o.connect(g).connect(this.sparkBus);
     o.start(); o.stop(t + 2.8);
   },
+  shimmer(v) {
+    // guidance chime: swells as the light lens nears the waiting star
+    if (!this.ctx) return;
+    if (!this._sh) {
+      const C = this.ctx;
+      const g = C.createGain(); g.gain.value = 0;
+      const o1 = C.createOscillator(); o1.type = 'sine'; o1.frequency.value = 1244.5; // D#6
+      const o2 = C.createOscillator(); o2.type = 'sine'; o2.frequency.value = 1868.0; // A#6
+      const g2 = C.createGain(); g2.gain.value = 0.35;
+      const lfo = C.createOscillator(); lfo.frequency.value = 5.2;
+      const lfoG = C.createGain(); lfoG.gain.value = 0.02;
+      lfo.connect(lfoG);
+      lfoG.connect(g.gain);
+      o1.connect(g); o2.connect(g2).connect(g);
+      g.connect(this.sparkBus);
+      o1.start(); o2.start(); lfo.start();
+      this._sh = g;
+    }
+    this._sh.gain.setTargetAtTime(v * 0.05, this.ctx.currentTime, 0.15);
+  },
   setRumble(v) {
     if (!this.rumbleGain) return;
     this.rumbleGain.gain.setTargetAtTime(v * 0.5, this.ctx.currentTime, 0.12);
@@ -959,6 +979,8 @@ const AudioEngine = {
 
 // ---------------------------------------------------------- v3: her real sky
 const skyNight = new SkyNight(scene, camera);
+skyNight.audio = AudioEngine;
+window.__SKY = skyNight;
 const journeyGroups = [sky, starsFar, starsNear, dust, nebulaGroup, planetGroup, homeGroup, meteorGroup, textGroup];
 let skyLoadStarted = false;
 
@@ -1024,28 +1046,37 @@ $('siStart').addEventListener('click', () => {
     $('flash').style.opacity = 0;
   }, 1200);
 });
-$('memClose').addEventListener('click', () => $('memCard').classList.remove('on'));
+$('memClose').addEventListener('click', () => {
+  $('memCard').classList.remove('on');
+  setTimeout(() => skyNight.whisperToStation(), 1500);
+});
 $('gyroBtn').addEventListener('click', () => skyNight.enableGyro());
 
-// drag / tap routing for sky mode
-const P = { down: false, x: 0, y: 0, sx: 0, sy: 0, t: 0, moved: 0 };
+// lens / hold-to-expose / drag routing for sky mode
+const P = { down: false, x: 0, y: 0, t: 0, moved: 0, exposing: false };
 addEventListener('pointerdown', e => {
   if (S.mode !== 'sky') return;
-  P.down = true; P.x = P.sx = e.clientX; P.y = P.sy = e.clientY;
+  P.down = true; P.x = e.clientX; P.y = e.clientY;
   P.t = performance.now(); P.moved = 0;
+  skyNight.moveLens(e.clientX, e.clientY);
+  P.exposing = skyNight.pressStart(e.clientX, e.clientY);
 });
 addEventListener('pointermove', e => {
-  if (S.mode !== 'sky' || !P.down) return;
+  if (S.mode !== 'sky') return;
+  skyNight.moveLens(e.clientX, e.clientY);
+  if (!P.down) return;
   const dx = e.clientX - P.x, dy = e.clientY - P.y;
   P.moved += Math.abs(dx) + Math.abs(dy);
-  skyNight.drag(dx, dy);
+  if (P.exposing) skyNight.pressMove(e.clientX, e.clientY);
+  else skyNight.drag(dx, dy);
   P.x = e.clientX; P.y = e.clientY;
 });
 addEventListener('pointerup', e => {
   if (S.mode !== 'sky' || !P.down) return;
   P.down = false;
+  if (P.exposing) { skyNight.pressEnd(); P.exposing = false; return; }
   if (P.moved < 10 && performance.now() - P.t < 500) {
-    skyNight.tap(e.clientX, e.clientY, innerWidth, innerHeight);
+    skyNight.tapMeteor(e.clientX, e.clientY);
   }
 });
 

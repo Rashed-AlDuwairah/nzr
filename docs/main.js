@@ -1026,6 +1026,31 @@ $('gate').addEventListener('click', () => {
   if (S.mode !== 'journey') return;
   $('skyIntro').classList.add('on');
 });
+// ---------- tutorial: teach it like a real game
+const TUT_STEPS = [
+  { icon: '🖐️', text: 'اسحبي إصبعك على الشاشة بأي اتجاه لتدوري في السماء ٣٦٠ درجة… جربيها بعد ما نبدأ' },
+  { icon: '✦', text: 'في السماء ٧ نجوم تحمل ضوءاً انطلق في سنوات عمرك.\nالسهم الذهبي والهمسة في أعلى الشاشة يدلانك على النجم المطلوب — وكلما اقتربتِ منه علا الرنين واشتد توهجه' },
+  { icon: '⭕', text: 'إذا وصلتِ النجم المتوهج: ضعي إصبعك عليه ولا ترفعيه حتى تكتمل حلقة الضوء حوله.\nكل نجم يفتح لكِ رسالة… وآخر نجم يخبئ المفاجأة الكبرى' },
+  { icon: '☄️', text: 'والشهب التي تعبر السماء حقيقية — تمطر كل عام في ليلة ميلادك.\nالمسي أي شهاب عابر تلتقطي أمنية' },
+];
+let tutIdx = 0;
+function showTut(i) {
+  tutIdx = i;
+  $('tutStep').textContent = `${i + 1} / ${TUT_STEPS.length}`;
+  $('tutIcon').textContent = TUT_STEPS[i].icon;
+  $('tutText').innerText = TUT_STEPS[i].text;
+  $('tutNext').textContent = i === TUT_STEPS.length - 1 ? 'ابدئي رحلة الضوء ✦' : 'التالي';
+  $('tut').classList.add('on');
+}
+$('tutNext').addEventListener('click', () => {
+  if (tutIdx < TUT_STEPS.length - 1) { showTut(tutIdx + 1); return; }
+  $('tut').classList.remove('on');
+  skyNight.tutorialDone = true;
+  localStorage.setItem('noor_sky_tut', '1');
+  skyNight.whisperToStation();
+});
+$('helpBtn').addEventListener('click', () => showTut(0));
+
 $('siStart').addEventListener('click', () => {
   if (!skyNight.ready) { setTimeout(() => $('siStart').click(), 400); return; }
   $('skyIntro').classList.remove('on');
@@ -1045,6 +1070,7 @@ $('siStart').addEventListener('click', () => {
     finalPass.uniforms.uCA.value = 0.0009;
     skyNight.enter();
     $('flash').style.opacity = 0;
+    setTimeout(() => { if (!skyNight.tutorialDone && skyNight.stationIdx < 7) showTut(0); }, 3000);
   }, 1200);
 });
 $('memClose').addEventListener('click', () => {

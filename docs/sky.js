@@ -126,6 +126,7 @@ export class SkyNight {
     this.lensDir = new THREE.Vector3(0, 0, -1);
     this.finaleT = -1;
     this.photoParts = null;
+    this.tutorialDone = localStorage.getItem('noor_sky_tut') === '1';
   }
 
   async load() {
@@ -368,7 +369,7 @@ export class SkyNight {
     this.fov = 60;
     this.updateCamera();
     this.refreshHud();
-    if (this.stationIdx < 7) setTimeout(() => this.whisperToStation(), 3500);
+    if (this.tutorialDone && this.stationIdx < 7) setTimeout(() => this.whisperToStation(), 3500);
   }
 
   // ------------------------------------------------ camera & input
@@ -474,10 +475,14 @@ export class SkyNight {
 
   // ------------------------------------------------ quest flow
   refreshHud() {
+    const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+    const ar = n => String(n).split('').map(d => AR[+d]).join('');
     const c = document.getElementById('memCount');
-    if (c) c.textContent = this.stationIdx >= 7 ? 'اكتمل الضوء ✦' : `محطة الضوء ${this.stationIdx + 1} / 7 ✦`;
+    if (c) c.textContent = this.stationIdx >= 7
+      ? '✦ اكتمل الضوء'
+      : `✦ النجمة ${ar(this.stationIdx + 1)} من ٧`;
     const w = document.getElementById('wishCount');
-    if (w) w.textContent = `${this.wishes} ☄`;
+    if (w) w.textContent = `☄ ${ar(this.wishes)} أمنيات`;
   }
 
   whisperToStation() {
@@ -492,9 +497,7 @@ export class SkyNight {
     w.textContent = last
       ? `بقي أقدم ضوء.. ضوء عام ٢٠٠٥ — انظري نحو ${dname}، ${h}، حيث يومض نجم عام ميلادك`
       : `فيه ضوء قديم ينتظرك نحو ${dname}، ${h}.. اقتربي منه وأمسكيه بإصبعك حتى يكتمل`;
-    w.classList.add('on');
-    clearTimeout(this.whisperTO);
-    this.whisperTO = setTimeout(() => w.classList.remove('on'), 9000);
+    w.classList.add('on'); // stays until the star is found
   }
 
   completeStation() {
@@ -502,6 +505,8 @@ export class SkyNight {
     st.done = true;
     st.halo.material.color.set(0xaec3e8);
     this.cancelExposure();
+    document.getElementById('whisper').classList.remove('on');
+    document.getElementById('guideArrow').classList.remove('on');
     if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
     if (this.audio) this.audio.pluck();
 
@@ -653,8 +658,8 @@ export class SkyNight {
         const ang = this.lensDir.angleTo(st.dir);
         const near = THREE.MathUtils.clamp(1 - ang / 0.9, 0, 1);
         shimmer = Math.pow(near, 3);
-        target = 0.12 + Math.pow(near, 2.5) * 0.8 + Math.sin(time * 3.0) * 0.08 * near;
-        st.halo.scale.setScalar(20 + Math.pow(near, 2) * 16 + Math.sin(time * 2.2) * 3);
+        target = 0.30 + Math.pow(near, 2.5) * 0.7 + Math.sin(time * 3.0) * 0.1;
+        st.halo.scale.setScalar(26 + Math.pow(near, 2) * 16 + Math.sin(time * 2.2) * 5);
       }
       st.halo.material.opacity += (target - st.halo.material.opacity) * (1 - Math.exp(-dt * 3));
     }
@@ -701,6 +706,25 @@ export class SkyNight {
         document.getElementById('lightPhoto').classList.add('on');
       }
     }
+
+    // guide arrow: points along the screen edge toward the waiting star
+    const ga = document.getElementById('guideArrow');
+    if (active && this.tutorialDone && this.finaleT < 0 && !document.getElementById('memCard').classList.contains('on')) {
+      const pv = new THREE.Vector3().copy(active.dir).multiplyScalar(R).project(this.camera);
+      const onScreen = pv.z < 1 && Math.abs(pv.x) < 0.82 && Math.abs(pv.y) < 0.78;
+      if (onScreen) ga.classList.remove('on');
+      else {
+        ga.classList.add('on');
+        // direction in camera space (works even when the star is behind us);
+        // a compass ring around screen centre, clear of the whisper and the HUD
+        const dc = active.dir.clone().applyQuaternion(this.camera.quaternion.clone().invert());
+        const a = Math.atan2(dc.y, dc.x);
+        const rad = Math.min(innerWidth, innerHeight) * 0.30;
+        const x = innerWidth / 2 + Math.cos(a) * rad;
+        const y = innerHeight / 2 - Math.sin(a) * rad;
+        ga.style.transform = `translate(${x | 0}px, ${y | 0}px) translate(-50%,-50%) rotate(${-a}rad)`;
+      }
+    } else ga.classList.remove('on');
 
     // labels
     const W = innerWidth, H = innerHeight;

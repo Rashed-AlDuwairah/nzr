@@ -558,18 +558,21 @@ export class SkyNight {
     img.src = './us.jpg';
     img.onerror = () => { img.onerror = null; img.src = './noor.jpg'; };
     img.onload = () => {
-      const G = 88; // sampling grid
+      // sample on a grid matching the photo's aspect so nothing is cropped
+      const aspect = img.width / img.height;
+      const GX = Math.round(96 * Math.sqrt(aspect));
+      const GY = Math.round(96 / Math.sqrt(aspect));
       const cv = document.createElement('canvas');
-      cv.width = cv.height = G;
+      cv.width = GX; cv.height = GY;
       const ctx = cv.getContext('2d');
-      const s = Math.min(img.width, img.height);
-      ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, G, G);
-      const px = ctx.getImageData(0, 0, G, G).data;
-      const W = 210; // world size of the developed photograph
+      ctx.drawImage(img, 0, 0, GX, GY);
+      const px = ctx.getImageData(0, 0, GX, GY).data;
+      const W = 230;              // world width of the developed photograph
+      const H = W / aspect;
       const pts = [], cols = [];
-      for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
-        const k = (y * G + x) * 4;
-        pts.push((x / G - 0.5) * W, (0.5 - y / G) * W, 0);
+      for (let y = 0; y < GY; y++) for (let x = 0; x < GX; x++) {
+        const k = (y * GX + x) * 4;
+        pts.push((x / GX - 0.5) * W, (0.5 - y / GY) * H, 0);
         cols.push(px[k] / 255, px[k+1] / 255, px[k+2] / 255);
       }
       const n = pts.length / 3;

@@ -996,16 +996,17 @@ const S = {
   slowFrames: 0,
 };
 const $ = id => document.getElementById(id);
-const chapters = [$('ch1'), $('ch2'), $('ch3'), $('ch4'), $('ch5'), $('ch6'), $('ch7'), $('ch8')];
+const chapters = [$('ch1'), $('ch2'), $('ch3'), $('ch4'), $('chAug'), $('ch5'), $('ch6'), $('ch7'), $('ch8')];
 const chapterWindows = [
-  [0.010, 0.105],
-  [0.130, 0.230],
-  [0.258, 0.358],
-  [0.386, 0.486],
-  [0.514, 0.614],
-  [0.642, 0.734],
-  [0.760, 0.848],
-  [0.862, 0.920],
+  [0.010, 0.096],
+  [0.118, 0.204],
+  [0.226, 0.312],
+  [0.334, 0.420],
+  [0.442, 0.528],
+  [0.550, 0.636],
+  [0.658, 0.736],
+  [0.758, 0.836],
+  [0.858, 0.920],
 ];
 const progDots = Array.from(document.querySelectorAll('#prog i'));
 
@@ -1067,6 +1068,7 @@ addEventListener('pointermove', e => {
   if (!P.down) return;
   const dx = e.clientX - P.x, dy = e.clientY - P.y;
   P.moved += Math.abs(dx) + Math.abs(dy);
+  if (pinch.dist) { skyNight.cancelExposure(); P.exposing = false; return; }
   if (P.exposing) skyNight.pressMove(e.clientX, e.clientY);
   else skyNight.drag(dx, dy);
   P.x = e.clientX; P.y = e.clientY;
@@ -1116,6 +1118,35 @@ addEventListener('pointermove', e => {
 addEventListener('pointerdown', () => {
   if (S.mode === 'journey') spawnShooter(camera.position); // اصنعي أمنية
 });
+// ---------- mobile hardening
+document.addEventListener('gesturestart', e => e.preventDefault());   // iOS pinch page-zoom
+document.addEventListener('contextmenu', e => e.preventDefault());    // long-press menu breaks hold-to-expose
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && AudioEngine.ctx && AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
+});
+addEventListener('pointerdown', () => {
+  if (AudioEngine.ctx && AudioEngine.ctx.state === 'suspended') AudioEngine.ctx.resume();
+});
+
+// two-finger pinch = telescope zoom in the sky
+const pinch = { pts: new Map(), dist: 0 };
+addEventListener('touchstart', e => {
+  if (S.mode !== 'sky' || e.touches.length !== 2) return;
+  pinch.dist = Math.hypot(
+    e.touches[0].clientX - e.touches[1].clientX,
+    e.touches[0].clientY - e.touches[1].clientY);
+}, { passive: true });
+addEventListener('touchmove', e => {
+  if (S.mode !== 'sky' || e.touches.length !== 2 || !pinch.dist) return;
+  const d = Math.hypot(
+    e.touches[0].clientX - e.touches[1].clientX,
+    e.touches[0].clientY - e.touches[1].clientY);
+  skyNight.zoom((pinch.dist - d) * 0.12);
+  skyNight.cancelExposure();
+  pinch.dist = d;
+}, { passive: true });
+addEventListener('touchend', () => { pinch.dist = 0; }, { passive: true });
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();

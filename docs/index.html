@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>نورة — رحلة عبر الكون</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✨</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -229,7 +229,7 @@
     width:6em; text-align:center; }
   .starLabel.jup { color:rgba(255,225,180,.9); }
 
-  #skyHud { position:fixed; left:22px; bottom:calc(6.5vh + 16px); z-index:26;
+  #skyHud { position:fixed; left:max(22px, env(safe-area-inset-left)); bottom:calc(6.5vh + 16px + env(safe-area-inset-bottom, 0px)); z-index:26;
     display:none; align-items:center; gap:14px; direction:ltr; }
   body.sky #skyHud { display:flex; }
   #skyHud span { font-family:'Amiri',serif; font-size:.95rem;
@@ -256,7 +256,8 @@
   .mc-box { text-align:center; max-width:680px; padding:4vh 7vw;
     display:flex; flex-direction:column; gap:1.8vh; align-items:center;
     border:1px solid rgba(255,210,150,.22); border-radius:24px;
-    background:rgba(20,14,8,.6); box-shadow:0 0 80px rgba(255,190,110,.12); }
+    background:rgba(20,14,8,.6); box-shadow:0 0 80px rgba(255,190,110,.12);
+    max-height:84vh; overflow-y:auto; margin:0 4vw; }
   .mc-star { font-size:1.8rem; color:#ffd98f; text-shadow:0 0 24px rgba(255,200,120,1);
     animation:breathe 3s ease-in-out infinite; }
   #stName { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1.2rem,3vh,1.7rem);
@@ -328,48 +329,53 @@
 <div class="layer" id="flash"></div>
 
 <div class="layer chapter" id="ch1">
-  <div class="ar">في هذا الكونِ الواسع…<br>كانت كلُّ النجومِ تنتظرُ شيئًا واحدًا</div>
+  <div class="ar">في هذا الكون الواسع…<br>كانت النجوم كلها تنتظر شيئاً واحداً</div>
   <div class="sub">AMONG BILLIONS OF STARS</div>
 </div>
 
 <div class="layer chapter" id="ch2">
-  <div class="ar">ضوءًا لا يشبهُ أيَّ ضوء<br>اسمُهُ نُورة</div>
-  <div class="sub">A LIGHT CALLED NOOR</div>
+  <div class="ar">ضوءاً لا يشبه أي ضوء<br>اسمه نُورة</div>
+  <div class="sub">A LIGHT CALLED NOORA</div>
 </div>
 
 <div class="layer chapter" id="ch3">
-  <div class="ar">منذُ ١٣ / ٨ / ٢٠٠٥<br>صارَ لهذا الكونِ معنى</div>
+  <div class="ar">منذ ١٣ / ٨ / ٢٠٠٥<br>صار لهذا الكون معنى</div>
   <div class="sub">13 · 08 · 2005</div>
 </div>
 
 <div class="layer chapter" id="ch4">
-  <div class="ar">عمرُ الكونِ ١٣٫٨ مليارَ سنة<br>وكأنَّهُ كانَ يَعُدُّ منذُ الأزلِ ليومِكِ… ١٣ / ٨</div>
+  <div class="ar">عمر الكون ١٣٫٨ مليار سنة<br>وكأنه كان يعدّ منذ الأزل ليومكِ… ١٣ / ٨</div>
   <div class="sub">THE UNIVERSE IS 13.8 BILLION YEARS OLD</div>
 </div>
 
+<div class="layer chapter" id="chAug">
+  <div class="ar">أغسطس… شهر الصيف في قمته، وشهر الأسود<br>مواليده يشبهون الشمس: دفء، وكبرياء، وضوء ما ينطفئ<br>حتى السماء تعرف ذلك… فتمطر شهباً كل عام في ليلته</div>
+  <div class="sub">BORN IN AUGUST · BORN A LEO</div>
+</div>
+
 <div class="layer chapter" id="ch5">
-  <div class="ar">علَّمني أوليفر ذاتَ ليلةٍ أنَّ في الكونِ رياحًا تُدعى رياحَ الهجر…<br>مهمَّتُها أن تحملَ قلبَكَ وترميَهُ عندَ مَن يستحقُّه</div>
+  <div class="ar">علّمني أوليفر ذات ليلة أن في الكون رياحاً تدعى رياح الهجر…<br>مهمتها أن تحمل قلبك وترميه عند من يستحقه</div>
   <div class="sub">THE WINDS OF PARTING</div>
 </div>
 
 <div class="layer chapter" id="ch6">
-  <div class="ar">أما أنتِ… فلن أجرؤَ على وصفِكِ برياحِ الهجر<br>لأنَّكِ لي وحدي، ولأنِّي لكِ وحدَكِ<br>فأنتِ لستِ الريحَ التي تحملُ القلوب… أنتِ مَن تُحمَلُ إليهِ القلوب</div>
+  <div class="ar">أما أنتِ… فلن أجرؤ على وصفك برياح الهجر<br>لأنكِ لي وحدي، ولأني لكِ وحدك<br>أنتِ لستِ الريح التي تحمل القلوب… أنتِ من تُحمل إليه القلوب</div>
   <div class="sub">YOU ARE WHERE HEARTS BELONG</div>
 </div>
 
 <div class="layer chapter" id="ch7">
-  <div class="ar">في أعيادِ الميلادِ يُهدونَ الورودَ والثيابَ والحُليّ…<br>هدايا تتشابهُ وتتكرَّر، حتى تفقدَ بريقَها وتُنسى</div>
+  <div class="ar">في أعياد الميلاد يهدون الورود والثياب والحلي…<br>هدايا تتشابه وتتكرر، حتى تفقد بريقها وتُنسى</div>
   <div class="sub">NOT THIS TIME</div>
 </div>
 
 <div class="layer chapter" id="ch8">
-  <div class="ar">أما أنا… فصنعتُ لكِ كونًا كاملًا<br>ثلاثةُ أشهرٍ من السهرِ بصمت… أغيبُ وأقولُ إنِّي نائم<br>والحقيقةُ أنِّي كنتُ أعدُّ الأيامَ لهذهِ الليلة</div>
+  <div class="ar">أما أنا… فصنعت لكِ كوناً كاملاً<br>ثلاثة أشهر من السهر بصمت… أغيب وأقول إني نائم<br>والحقيقة أني كنت أعدّ الأيام لهذه الليلة</div>
   <div class="sub">THREE MONTHS · MADE IN SILENCE · ONLY FOR YOU</div>
 </div>
 
 <div class="layer" id="finale">
   <img id="noorPhoto" src="./noor.jpg" alt="نورة">
-  <div class="msg">هذهِ الهديَّةُ لا تُشبِهُ غيرَها… لأنَّها لكِ وحدَكِ، يا نورَ هذا الكون.<br>لو مَلَكتُ الكونَ كلَّهُ لما وجدتُ فيهِ أجملَ منكِ.<br>كلُّ عامٍ وأنتِ نُوري الذي لا ينطفئ.</div>
+  <div class="msg">هذه الهدية لا تشبه غيرها… لأنها لكِ وحدك، يا نور هذا الكون.<br>لو ملكت الكون كله ما وجدت فيه أجمل منك.<br>كل عام وأنتِ نوري الذي لا ينطفئ.</div>
   <div class="sig">HAPPY BIRTHDAY, MY UNIVERSE</div>
   <div id="gate">✦ اعبري إلى سماءِ ليلتِكِ الأولى ✦</div>
 </div>
@@ -377,12 +383,12 @@
 <!-- ======== v3: her real sky ======== -->
 <div class="layer" id="skyIntro">
   <div class="si-box">
-    <div class="si-title">سماءُ الرياض · ليلة ١٣ / ٨ / ٢٠٠٥</div>
-    <div class="si-body">هذهِ ليست سماءً خيالية.<br>
-      كلُّ نجمةٍ هنا كانت في مكانِها هذا تمامًا ليلةَ وُلدتِ.<br>
-      وفي كلِّ عامٍ في ليلتِكِ، تُمطرُ السماءُ شهبَ البرشاويات…<br>الكونُ يحتفلُ فعلًا.</div>
-    <div class="si-hints">اسحبي لتدوري في السماء ✦ المسي الشهبَ لتلتقطي أمنية ✦ وابحثي عن ٢١ نجمةً ذهبية</div>
-    <div id="siStart">افتحي عينيكِ</div>
+    <div class="si-title">سماء الرياض · ليلة ١٣ / ٨ / ٢٠٠٥</div>
+    <div class="si-body">هذه ليست سماءً خيالية.<br>
+      كل نجمة هنا كانت في مكانها هذا تماماً ليلة ولدتِ.<br>
+      وكل عام في ليلتك، تمطر السماء شهباً حقيقية…<br>أغسطس يحتفل بمواليده فعلاً.</div>
+    <div class="si-hints">اسحبي لتدوري في السماء ✦ المسي الشهب لتلتقطي أمنية ✦ واتبعي همس الضوء إلى سبع محطات</div>
+    <div id="siStart">افتحي عينيك</div>
   </div>
 </div>
 
@@ -412,9 +418,9 @@
 
 <div class="layer" id="lightPhoto">
   <div class="lp-box">
-    <div class="lp-t1">هذا ما كانَ ضوءُ عامِ ٢٠٠٥ يحمِلُهُ إليكِ طوالَ الطريق…</div>
+    <div class="lp-t1">هذا ما كان ضوء عام ٢٠٠٥ يحمله إليكِ طوال الطريق…</div>
     <img id="usPhoto" src="./us.jpg" onerror="this.onerror=null;this.src='./noor.jpg'" alt="نحن">
-    <div class="lp-t2">نحنُ… قبلَ أن نلتقي.<br>كانَ الكونُ يعرفُ قبلَنا.</div>
+    <div class="lp-t2">نحن… قبل أن نلتقي.<br>كان الكون يعرف قبلنا.</div>
   </div>
 </div>
 

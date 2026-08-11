@@ -230,7 +230,7 @@
   .starLabel.jup { color:rgba(255,225,180,.9); }
 
   #skyHud { position:fixed; left:max(22px, env(safe-area-inset-left)); bottom:calc(6.5vh + 16px + env(safe-area-inset-bottom, 0px)); z-index:26;
-    display:none; align-items:center; gap:14px; direction:ltr; }
+    display:none; align-items:center; gap:14px; }
   body.sky #skyHud { display:flex; }
   #skyHud span { font-family:'Amiri',serif; font-size:.95rem;
     color:rgba(230,225,255,.8); text-shadow:0 1px 8px #000;
@@ -240,6 +240,38 @@
     border:1px solid rgba(150,160,255,.3); background:rgba(20,18,55,.4);
     color:#cfd6ff; font-size:15px; display:none; }
   @media (pointer:coarse) { #gyroBtn { display:block; } }
+  #helpBtn { width:36px; height:36px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(255,215,150,.35); background:rgba(55,38,15,.4);
+    color:#ffdfae; font-size:16px; font-family:'Amiri',serif; }
+
+  /* guide arrow: points to the waiting star when it is off screen */
+  #guideArrow { position:fixed; z-index:26; left:0; top:0; pointer-events:none;
+    opacity:0; transition:opacity .5s ease; will-change:transform;
+    color:#ffd98f; font-size:30px; line-height:1;
+    text-shadow:0 0 20px rgba(255,200,120,1), 0 0 44px rgba(255,180,90,.7);
+    display:flex; align-items:center; }
+  #guideArrow span { display:none; }
+  #guideArrow.on { opacity:.95; animation:gaPulse 1.6s ease-in-out infinite; }
+  @keyframes gaPulse { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.6); } }
+
+  /* tutorial */
+  #tut { z-index:49; background:rgba(2,2,8,.6); backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none; transition:opacity .8s ease; }
+  #tut.on { opacity:1; pointer-events:auto; }
+  .tut-box { text-align:center; max-width:560px; margin:0 6vw; padding:5vh 8vw;
+    display:flex; flex-direction:column; gap:2.2vh; align-items:center;
+    border:1px solid rgba(160,175,255,.28); border-radius:24px;
+    background:rgba(12,14,40,.65); box-shadow:0 0 80px rgba(120,140,255,.15); }
+  #tutStep { font-family:'Amiri',serif; font-size:clamp(.8rem,2vh,.95rem);
+    color:rgba(180,195,245,.7); letter-spacing:0; direction:ltr; }
+  #tutIcon { font-size:clamp(2rem,6vh,3rem); line-height:1;
+    animation:breathe 2.6s ease-in-out infinite; }
+  #tutText { font-family:'Aref Ruqaa','Amiri',serif; font-size:clamp(1rem,2.7vh,1.4rem);
+    line-height:2.15; color:#e8ecff; }
+  #tutNext { pointer-events:auto; cursor:pointer; font-family:'Amiri',serif;
+    font-size:clamp(.95rem,2.3vh,1.1rem); color:#dfe5ff; padding:.5rem 2.6rem;
+    border:1px solid rgba(160,175,255,.45); border-radius:100px;
+    background:rgba(40,48,110,.35); text-shadow:0 0 12px rgba(160,175,255,.8); }
 
   #wishToast { position:fixed; top:calc(6.5vh + 20px); left:50%; transform:translateX(-50%) translateY(-8px);
     z-index:27; font-family:'Aref Ruqaa','Amiri',serif; font-size:1rem;
@@ -395,15 +427,26 @@
 <div id="labels"></div>
 
 <div id="skyHud">
-  <span id="memCount">0 / 21 ✦</span>
-  <span id="wishCount">0 ☄</span>
+  <span id="memCount">✦ النجمة ١ من ٧</span>
+  <span id="wishCount">☄ ٠ أمنيات</span>
   <button id="gyroBtn" title="حرّكي جوالك لتتحرك السماء">🧭</button>
+  <button id="helpBtn" title="شرح اللعبة">؟</button>
 </div>
 
 <div id="wishToast">أُمنيةٌ التُقِطَت ☄</div>
 
 <div id="expRing"></div>
 <div id="whisper"></div>
+<div id="guideArrow">➤</div>
+
+<div class="layer" id="tut">
+  <div class="tut-box">
+    <div id="tutStep"></div>
+    <div id="tutIcon"></div>
+    <div id="tutText"></div>
+    <div id="tutNext">التالي</div>
+  </div>
+</div>
 
 <div class="layer" id="memCard">
   <div class="mc-box">
@@ -420,7 +463,7 @@
   <div class="lp-box">
     <div class="lp-t1">هذا ما كان ضوء عام ٢٠٠٥ يحمله إليكِ طوال الطريق…</div>
     <img id="usPhoto" src="./us.jpg" onerror="this.onerror=null;this.src='./noor.jpg'" alt="نحن">
-    <div class="lp-t2">نحن… قبل أن نلتقي.<br>كان الكون يعرف قبلنا.</div>
+    <div class="lp-t2">نحن… قبل أن نلتقي. كان الكون يعرف قبلنا.<br>أحبكِ يا نورة… كل عام وأنتِ بخير يا حبيبتي ❤</div>
   </div>
 </div>
 

@@ -5,6 +5,7 @@
 //  light of all carries a photograph.
 // ============================================================
 import * as THREE from 'three';
+import { buildRiyadh, buildNoura, buildWormhole } from './world.js';
 
 const R = 1000;
 
@@ -127,6 +128,10 @@ export class SkyNight {
     this.finaleT = -1;
     this.photoParts = null;
     this.tutorialDone = localStorage.getItem('noor_sky_tut') === '1';
+    // the arrival: wormhole -> she is sitting on the ground in Riyadh
+    this.phase = 'idle';      // idle | wormhole | arriving | play
+    this.phaseT = 0;
+    this.onArrived = null;
   }
 
   async load() {
@@ -360,21 +365,54 @@ export class SkyNight {
     jl.textContent = 'المُشتري';
     labelHost.appendChild(jl);
     this.namedStars.push({ el: jl, pos: this.jupiterPos });
+
+    // ---------- her world: Riyadh, the ground, and Noura herself
+    this.riyadh = buildRiyadh();
+    this.group.add(this.riyadh);
+
+    this.noura = buildNoura();
+    this.noura.position.set(0, 0, -2.55);
+    this.noura.scale.setScalar(1.22);
+    this.group.add(this.noura);
+
+    // ---------- the wormhole she falls through to get here
+    this.wormhole = buildWormhole();
+    this.wormhole.visible = false;
+    this.scene.add(this.wormhole);
   }
 
+  // the camera falls through the wormhole, then finds her sitting there
   enter() {
     this.entered = true;
-    this.group.visible = true;
-    this.camera.position.set(0, 2, 0);
-    this.fov = 60;
-    this.updateCamera();
+    this.group.visible = false;          // the sky waits on the far side
+    this.wormhole.visible = true;
+    this.phase = 'wormhole';
+    this.phaseT = 0;
+    this.phaseStart = performance.now();
+    this.fov = 62;
+    this.camera.position.set(0, 0, 215);
+    this.camera.rotation.set(0, 0, 0);
+    this.camera.lookAt(0, 0, -100);
     this.refreshHud();
-    if (this.tutorialDone && this.stationIdx < 7) setTimeout(() => this.whisperToStation(), 3500);
+  }
+
+  // the camera settles into place over her shoulder and hands her the sky
+  beginPlay() {
+    this.phase = 'play';
+    this.yaw = 0;                         // due north — the city, and Vega above it
+    this.pitch = 0.34;                    // she stays in frame, the sky fills the rest
+    this.yawV = this.pitchV = 0;
+    this.fov = 60;
+    // low enough that her head and her hair stand against the sky
+    this.camera.position.set(0, 1.20, 1.15);
+    this.updateCamera();
+    if (this.onArrived) this.onArrived();
   }
 
   // ------------------------------------------------ camera & input
   updateCamera() {
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.06, 1.45);
+    // she can look down at herself and the city, and all the way to the zenith
+    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.32, 1.45);
     const d = new THREE.Vector3(
       Math.sin(this.yaw) * Math.cos(this.pitch),
       Math.sin(this.pitch),
@@ -624,33 +662,72 @@ export class SkyNight {
   // ------------------------------------------------ per-frame
   update(dt, time) {
     if (!this.ready || !this.entered) return;
+
+    // ---------- the fall through the wormhole
+    // cinematic phases run on the wall clock, so a slow phone still gets
+    // the same five and a half seconds, just at fewer frames
+    if (this.phase === 'wormhole') {
+      if (!this.phaseStart) this.phaseStart = performance.now();
+      this.phaseT = (performance.now() - this.phaseStart) / 1000;
+      const T = 5.6;
+      const k = THREE.MathUtils.clamp(this.phaseT / T, 0, 1);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // ease in-out
+      this.wormhole.userData.mat.uniforms.uTime.value = time;
+      this.wormhole.userData.debrisMat.uniforms.uTime.value = time;
+      this.camera.position.set(
+        Math.sin(time * 0.9) * 0.5,
+        Math.cos(time * 0.75) * 0.5,
+        215 - e * 430);
+      this.camera.lookAt(0, 0, this.camera.position.z - 60);
+      this.camera.rotation.z = Math.sin(time * 0.55) * 0.22 + k * 0.5;
+      this.fov = 62 + Math.sin(k * Math.PI) * 34;
+      this.camera.fov = this.fov;
+      this.camera.updateProjectionMatrix();
+      // the throat closes as the far mouth swallows the screen
+      const out = THREE.MathUtils.clamp((this.phaseT - (T - 0.9)) / 0.9, 0, 1);
+      this.wormhole.userData.mat.uniforms.uFade.value = 1 - out * 0.4;
+      this.wormhole.userData.debrisMat.uniforms.uFade.value = 1 - out;
+      if (this.onFlash) this.onFlash(Math.pow(out, 1.5));
+      if (this.phaseT >= T) {
+        this.wormhole.visible = false;
+        this.group.visible = true;
+        this.phase = 'arriving';
+        this.phaseStart = performance.now();
+      }
+      return;
+    }
+
     this.bgMat.uniforms.uTime.value = time;
     this.starMat.uniforms.uTime.value = time;
+    if (this.riyadh) this.riyadh.userData.cityMat.uniforms.uTime.value = time;
+
+    // ---------- finding her: a slow push in over her shoulder, then up
+    if (this.phase === 'arriving') {
+      this.phaseT = (performance.now() - this.phaseStart) / 1000;
+      const T = 7.5;
+      const k = THREE.MathUtils.clamp(this.phaseT / T, 0, 1);
+      const e = k * k * (3 - 2 * k);
+      if (this.onFlash) this.onFlash(Math.max(0, 1 - this.phaseT / 1.1));
+      // drift closer and rise, the way a crane shot settles
+      this.camera.position.set(
+        0,
+        THREE.MathUtils.lerp(0.55, 1.20, e),
+        THREE.MathUtils.lerp(2.60, 1.15, e));
+      const lookY = THREE.MathUtils.lerp(1.15, 3.60, e * e);
+      this.camera.lookAt(0, lookY, -8.0);
+      this.fov = THREE.MathUtils.lerp(44, 60, e);
+      this.camera.fov = this.fov;
+      this.camera.updateProjectionMatrix();
+      this.updateMeteors(dt, time);
+      if (this.phaseT >= T) this.beginPlay();
+      return;
+    }
 
     this.yaw += this.yawV; this.pitch += this.pitchV;
     this.yawV *= Math.exp(-dt * 4.5); this.pitchV *= Math.exp(-dt * 4.5);
     this.updateCamera();
 
-    // perseids
-    this.meteorClock -= dt;
-    if (this.meteorClock <= 0) {
-      this.spawnMeteor();
-      if (Math.random() < 0.25) this.spawnMeteor();
-      this.meteorClock = 1.2 + Math.random() * 2.6;
-    }
-    for (const m of this.meteors) {
-      if (m.life <= 0) continue;
-      m.life -= dt;
-      const sp = m.caught ? m.speed * 0.35 : m.speed;
-      m.dir.addScaledVector(m.tan, sp * dt).normalize();
-      m.mesh.position.copy(m.dir).multiplyScalar(R * 0.98);
-      m.mesh.scale.set(30 + m.speed * 40, m.caught ? 2.6 : 1.6, 1);
-      const ahead = m.dir.clone().addScaledVector(m.tan, 0.05).multiplyScalar(R * 0.98);
-      m.mesh.lookAt(ahead);
-      m.mesh.rotateY(Math.PI / 2);
-      m.mesh.material.uniforms.uAlpha.value = Math.sin(THREE.MathUtils.clamp(m.life / m.dur, 0, 1) * Math.PI) * 0.95;
-      if (m.life <= 0) m.mesh.visible = false;
-    }
+    this.updateMeteors(dt, time);
 
     // ---------- lens proximity: sound & light guidance
     let shimmer = 0;
@@ -740,16 +817,43 @@ export class SkyNight {
     }
   }
 
-  spawnMeteor() {
+  // the Perseids — the rain that really falls on her birthday night
+  updateMeteors(dt, time) {
+    this.meteorClock -= dt;
+    if (this.meteorClock <= 0) {
+      this.spawnMeteor();
+      if (Math.random() < 0.45) this.spawnMeteor();
+      if (Math.random() < 0.16) { this.spawnMeteor(true); }   // a fireball
+      this.meteorClock = 0.55 + Math.random() * 1.5;
+    }
+    for (const m of this.meteors) {
+      if (m.life <= 0) continue;
+      m.life -= dt;
+      const sp = m.caught ? m.speed * 0.35 : m.speed;
+      m.dir.addScaledVector(m.tan, sp * dt).normalize();
+      m.mesh.position.copy(m.dir).multiplyScalar(R * 0.98);
+      const len = (30 + m.speed * 40) * (m.big ? 2.1 : 1);
+      m.mesh.scale.set(len, (m.caught ? 2.6 : 1.6) * (m.big ? 2.2 : 1), 1);
+      const ahead = m.dir.clone().addScaledVector(m.tan, 0.05).multiplyScalar(R * 0.98);
+      m.mesh.lookAt(ahead);
+      m.mesh.rotateY(Math.PI / 2);
+      m.mesh.material.uniforms.uAlpha.value =
+        Math.sin(THREE.MathUtils.clamp(m.life / m.dur, 0, 1) * Math.PI) * (m.big ? 1.0 : 0.95);
+      if (m.life <= 0) m.mesh.visible = false;
+    }
+  }
+
+  spawnMeteor(big = false) {
     const m = this.meteors.find(m => m.life <= 0);
     if (!m) return;
+    m.big = big;
     const axis = new THREE.Vector3().randomDirection().cross(this.radiantDir).normalize();
     const ang = THREE.MathUtils.degToRad(15 + Math.random() * 40);
     m.dir.copy(this.radiantDir).applyAxisAngle(axis, ang).normalize();
     if (m.dir.y < 0.06) { m.dir.y = 0.06 + Math.random() * 0.2; m.dir.normalize(); }
     m.tan.copy(m.dir).sub(this.radiantDir.clone().multiplyScalar(m.dir.dot(this.radiantDir))).normalize();
-    m.speed = 0.5 + Math.random() * 0.5;
-    m.life = m.dur = 0.8 + Math.random() * 0.9;
+    m.speed = big ? 0.30 + Math.random() * 0.22 : 0.5 + Math.random() * 0.5;
+    m.life = m.dur = big ? 1.9 + Math.random() * 1.0 : 0.8 + Math.random() * 0.9;
     m.caught = false;
     m.mesh.material.uniforms.uGold.value = 0;
     m.mesh.visible = true;

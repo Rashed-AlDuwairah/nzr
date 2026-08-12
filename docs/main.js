@@ -1027,17 +1027,29 @@ $('gate').addEventListener('click', () => {
   $('skyIntro').classList.add('on');
 });
 // ---------- tutorial: teach it like a real game
+const SVG = (d) => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor"
+  stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const TUT_STEPS = [
-  { icon: '🖐️', text: 'اسحبي إصبعك على الشاشة بأي اتجاه لتدوري في السماء ٣٦٠ درجة… جربيها بعد ما نبدأ' },
-  { icon: '✦', text: 'في السماء ٧ نجوم تحمل ضوءاً انطلق في سنوات عمرك.\nالسهم الذهبي والهمسة في أعلى الشاشة يدلانك على النجم المطلوب — وكلما اقتربتِ منه علا الرنين واشتد توهجه' },
-  { icon: '⭕', text: 'إذا وصلتِ النجم المتوهج: ضعي إصبعك عليه ولا ترفعيه حتى تكتمل حلقة الضوء حوله.\nكل نجم يفتح لكِ رسالة… وآخر نجم يخبئ المفاجأة الكبرى' },
-  { icon: '☄️', text: 'والشهب التي تعبر السماء حقيقية — تمطر كل عام في ليلة ميلادك.\nالمسي أي شهاب عابر تلتقطي أمنية' },
+  { icon: SVG(`<path d="M17 30V17.5a2.5 2.5 0 0 1 5 0V25m0-2.5a2.5 2.5 0 0 1 5 0V26m0-2a2.5 2.5 0 0 1 5 0v3"/>
+      <path d="M32 27v6a9 9 0 0 1-9 9h-1.2a7 7 0 0 1-5.6-2.9L11 32.5a2.4 2.4 0 0 1 3.6-3.1L17 32"/>
+      <path d="M8 12h9M8 12l3.2-3M8 12l3.2 3" opacity=".55"/>`),
+    text: 'اسحبي إصبعك على الشاشة بأي اتجاه لتدوري في السماء ٣٦٠ درجة… جربيها بعد ما نبدأ' },
+  { icon: SVG(`<path d="M24 6l3.1 12.4L39 24l-11.9 5.6L24 42l-3.1-12.4L9 24l11.9-5.6z"/>
+      <circle cx="24" cy="24" r="1.6" fill="currentColor"/>`),
+    text: 'في السماء ٧ نجوم تحمل ضوءاً انطلق في سنوات عمرك.\nالسهم والهمسة في أعلى الشاشة يدلانك على النجم المطلوب — وكلما اقتربتِ منه علا الرنين واشتد توهجه' },
+  { icon: SVG(`<circle cx="24" cy="24" r="15" opacity=".28"/>
+      <path d="M24 9a15 15 0 0 1 13 22.5"/>
+      <circle cx="24" cy="24" r="4.6" fill="currentColor" fill-opacity=".35"/>`),
+    text: 'إذا وصلتِ النجم المتوهج: ضعي إصبعك عليه ولا ترفعيه حتى تكتمل حلقة الضوء حوله.\nكل نجم يفتح لكِ رسالة… وآخر نجم يخبئ المفاجأة الكبرى' },
+  { icon: SVG(`<circle cx="33" cy="15" r="4.4" fill="currentColor" fill-opacity=".35"/>
+      <path d="M29 19L10 38"/><path d="M22 17L13 26" opacity=".6"/><path d="M31 27l-9 9" opacity=".6"/>`),
+    text: 'والشهب التي تعبر السماء حقيقية — تمطر كل عام في ليلة ميلادك.\nالمسي أي شهاب عابر تلتقطي أمنية' },
 ];
 let tutIdx = 0;
 function showTut(i) {
   tutIdx = i;
-  $('tutStep').textContent = `${i + 1} / ${TUT_STEPS.length}`;
-  $('tutIcon').textContent = TUT_STEPS[i].icon;
+  $('tutStep').textContent = `${i + 1} — ${TUT_STEPS.length}`;
+  $('tutIcon').innerHTML = TUT_STEPS[i].icon;
   $('tutText').innerText = TUT_STEPS[i].text;
   $('tutNext').textContent = i === TUT_STEPS.length - 1 ? 'ابدئي رحلة الضوء ✦' : 'التالي';
   $('tut').classList.add('on');
@@ -1117,7 +1129,8 @@ addEventListener('pointerup', e => {
 
 $('audioBtn').addEventListener('click', () => {
   const m = AudioEngine.toggleMute();
-  $('audioBtn').textContent = m ? '∅' : '♪';
+  for (const id of ['wave1', 'wave2']) $(id).style.display = m ? 'none' : '';
+  $('mute').style.display = m ? '' : 'none';
 });
 
 let hintShown = false, hintKilled = false;

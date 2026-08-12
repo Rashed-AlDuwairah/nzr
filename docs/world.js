@@ -361,33 +361,35 @@ export function buildNoura() {
   cap.rotation.x = -0.30;
   g.add(cap);
 
-  const fallGeo = new THREE.CylinderGeometry(0.140, 0.215, 0.70, 30, 12, true);
+  const fallGeo = new THREE.CylinderGeometry(0.140, 0.250, 1.10, 30, 18, true);
   {   // sculpt it so it hugs her back and flares at the ends
     const p = fallGeo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i);
-      const t = (v.y + 0.35) / 0.70;            // 0 at the bottom, 1 at the nape
+      const t = (v.y + 0.55) / 1.10;            // 0 at the ends, 1 at the nape
       const back = THREE.MathUtils.clamp(v.z / 0.18, -1, 1);
-      v.z += (1 - t) * 0.16 - 0.02;             // sweeps backward as it falls
-      v.x *= 1.0 + (1 - t) * 0.10;
-      v.z *= back > 0 ? 0.72 : 1.0;             // flatter against her back
-      v.y += Math.sin(v.x * 9.0) * 0.012 * (1 - t);
+      v.z += (1 - t) * 0.20 - 0.02;             // sweeps backward as it falls
+      v.x *= 1.0 + (1 - t) * 0.16;
+      v.z *= back > 0 ? 0.66 : 1.0;             // flatter against her back
+      // the ends part and curl instead of ending in a straight hem
+      v.y += Math.sin(v.x * 8.0) * 0.045 * Math.pow(1 - t, 1.8)
+           - Math.pow(1 - t, 3.0) * 0.05;
       p.setXYZ(i, v.x, v.y, v.z);
     }
     fallGeo.computeVertexNormals();
   }
   const fall = new THREE.Mesh(fallGeo, hairMat);
-  fall.position.set(0, 0.70, -0.050);
-  fall.rotation.x = 0.10;
+  fall.position.set(0, 0.52, -0.055);
+  fall.rotation.x = 0.09;
   g.add(fall);
 
   // a few loose strands catching the city light
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 4 - 0.5) * 1.5;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.004, 0.30 + i * 0.03, 6), hairMat);
-    s.position.set(Math.sin(a) * 0.14, 0.60 - i * 0.015, -0.11 + Math.cos(a) * 0.02);
-    s.rotation.set(0.14, 0, Math.sin(a) * 0.28);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 5 - 0.5) * 1.6;
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.003, 0.52 + i * 0.05, 6), hairMat);
+    s.position.set(Math.sin(a) * 0.155, 0.45 - i * 0.02, -0.125 + Math.cos(a) * 0.02);
+    s.rotation.set(0.12, 0, Math.sin(a) * 0.30);
     g.add(s);
   }
 

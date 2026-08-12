@@ -371,8 +371,8 @@ export class SkyNight {
     this.group.add(this.riyadh);
 
     this.noura = buildNoura();
-    this.noura.position.set(0, 0, -2.55);
-    this.noura.scale.setScalar(1.22);
+    this.noura.position.set(0, 0, -1.75);
+    this.noura.scale.setScalar(1.30);
     this.group.add(this.noura);
 
     // ---------- the wormhole she falls through to get here
@@ -512,15 +512,13 @@ export class SkyNight {
   }
 
   // ------------------------------------------------ quest flow
+  // seven marks: the ones she has already taken burn, the rest wait
   refreshHud() {
     const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-    const ar = n => String(n).split('').map(d => AR[+d]).join('');
-    const c = document.getElementById('memCount');
-    if (c) c.textContent = this.stationIdx >= 7
-      ? '✦ اكتمل الضوء'
-      : `✦ النجمة ${ar(this.stationIdx + 1)} من ٧`;
-    const w = document.getElementById('wishCount');
-    if (w) w.textContent = `☄ ${ar(this.wishes)} أمنيات`;
+    const marks = document.querySelectorAll('#memCount b');
+    marks.forEach((b, i) => b.classList.toggle('lit', i < this.stationIdx));
+    const w = document.getElementById('wishNum');
+    if (w) w.textContent = String(this.wishes).split('').map(d => AR[+d]).join('');
   }
 
   whisperToStation() {
@@ -561,7 +559,7 @@ export class SkyNight {
     ul.innerHTML = '';
     for (const r of REASONS.slice(this.stationIdx * 3, this.stationIdx * 3 + 3)) {
       const li = document.createElement('div');
-      li.textContent = '✦ ' + r;
+      li.textContent = r;                 // the hairline above it does the pointing
       ul.appendChild(li);
     }
     document.getElementById('memCard').classList.add('on');
@@ -806,13 +804,16 @@ export class SkyNight {
       }
     } else ga.classList.remove('on');
 
-    // labels
+    // star names step aside whenever the story is speaking
     const W = innerWidth, H = innerHeight;
     const v = new THREE.Vector3();
+    const speaking = this.finaleT >= 0
+      || document.getElementById('memCard').classList.contains('on')
+      || document.getElementById('tut').classList.contains('on');
     for (const s of this.namedStars) {
       v.copy(s.pos).project(this.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) { s.el.style.opacity = 0; continue; }
-      s.el.style.opacity = this.finaleT >= 0 ? 0 : 0.75;
+      s.el.style.opacity = speaking ? 0 : 0.75;
       s.el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W) | 0}px, ${((-v.y * 0.5 + 0.5) * H + 14) | 0}px)`;
     }
   }

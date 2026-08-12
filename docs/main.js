@@ -37,7 +37,14 @@ scene.add(sun);
 scene.add(new THREE.AmbientLight(0x223, 0.5));
 
 // ---------------------------------------------------------- post
-const composer = new EffectComposer(renderer);
+// multisampled target: the composer bypasses the canvas' own antialiasing,
+// so without this every silhouette edge comes out stair-stepped
+const _sz = renderer.getDrawingBufferSize(new THREE.Vector2());
+const _rt = new THREE.WebGLRenderTarget(_sz.width, _sz.height, {
+  type: THREE.HalfFloatType,
+  samples: 4,
+});
+const composer = new EffectComposer(renderer, _rt);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.65, 0.82);
 composer.addPass(bloom);
@@ -765,6 +772,7 @@ function buildTextParticles() {
       uTime: { value: 0 },
       uF1: { value: 0 },   // scattered -> english
       uF2: { value: 0 },   // english  -> نورة
+      uFade: { value: 1 }, // released when she steps through the gate
     },
     vertexShader: /* glsl */`
       attribute vec3 aTargA, aTargB;
@@ -789,12 +797,13 @@ function buildTextParticles() {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */`
+      uniform float uFade;
       varying float vGold, vTw;
       void main(){
         float r = length(gl_PointCoord - 0.5);
         float a = smoothstep(0.5, 0.04, r);
         vec3 c = mix(vec3(0.85, 0.88, 1.0), vec3(1.0, 0.84, 0.55), vGold);
-        gl_FragColor = vec4(c * (0.55 + vTw * 0.25), a * 0.5);
+        gl_FragColor = vec4(c * (0.55 + vTw * 0.25), a * 0.5 * uFade);
       }`
   });
   const pts = new THREE.Points(geo, textMat);
@@ -1024,7 +1033,11 @@ $('begin').addEventListener('click', () => {
 // ---------- v3 gate & sky-mode input
 $('gate').addEventListener('click', () => {
   if (S.mode !== 'journey') return;
-  $('skyIntro').classList.add('on');
+  // clear the closing card first — otherwise both texts sit on top of each other
+  $('finale').classList.remove('on');
+  $('prog').classList.remove('on');
+  S.gateFade = 0;                       // and let her name fade from the sky
+  setTimeout(() => $('skyIntro').classList.add('on'), 900);
 });
 // ---------- tutorial: teach it like a real game
 const SVG = (d) => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor"
@@ -1077,7 +1090,7 @@ $('siStart').addEventListener('click', () => {
     $('finale').classList.remove('on');
     $('prog').classList.remove('on');
     chapters.forEach(c => c.classList.remove('on'));
-    renderer.toneMappingExposure = 0.92;
+    renderer.toneMappingExposure = 1.14;
     finalPass.uniforms.uWarm.value = 0.08;
     finalPass.uniforms.uCA.value = 0.0009;
     // the flash is now driven frame by frame by the wormhole itself
@@ -1224,8 +1237,8 @@ function frame() {
   // adaptive quality
   const fdt = now - S.lastFrame;
   S.lastFrame = now;
-  if (fdt > 24) { if (++S.slowFrames > 90 && pixelRatio > 1) {
-    pixelRatio = Math.max(1, pixelRatio - 0.25);
+  if (fdt > 24) { if (++S.slowFrames > 90 && pixelRatio > 1.25) {
+    pixelRatio = Math.max(1.25, pixelRatio - 0.25);
     renderer.setPixelRatio(pixelRatio);
     composer.setPixelRatio ? composer.setPixelRatio(pixelRatio) : composer.setSize(innerWidth, innerHeight);
     S.slowFrames = 0;
@@ -1393,6 +1406,11 @@ function frame() {
     if (textMat) {
       textMat.uniforms.uF1.value = ease(clamp01((p - 0.920) / 0.055));
       textMat.uniforms.uF2.value = ease(clamp01((p - 0.972) / 0.026));
+      if (S.gateFade !== undefined) {
+        S.gateFade = Math.min(1, S.gateFade + dt / 1.4);
+        textGroup.visible = S.gateFade < 1;
+        textMat.uniforms.uFade.value = 1 - S.gateFade;
+      }
     }
 
     // overlay text windows

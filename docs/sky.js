@@ -371,8 +371,8 @@ export class SkyNight {
     this.group.add(this.riyadh);
 
     this.noura = buildNoura();
-    this.noura.position.set(0, 0, -1.75);
-    this.noura.scale.setScalar(1.30);
+    this.noura.position.set(0, 0, -2.30);
+    this.noura.scale.setScalar(1.0);      // built at her real height
     this.group.add(this.noura);
 
     // ---------- the wormhole she falls through to get here
@@ -403,8 +403,8 @@ export class SkyNight {
     this.pitch = 0.34;                    // she stays in frame, the sky fills the rest
     this.yawV = this.pitchV = 0;
     this.fov = 60;
-    // low enough that her head and her hair stand against the sky
-    this.camera.position.set(0, 1.20, 1.15);
+    // just behind her shoulder, her head against the sky
+    this.camera.position.set(0, 1.44, 0.72);
     this.updateCamera();
     if (this.onArrived) this.onArrived();
   }
@@ -412,7 +412,7 @@ export class SkyNight {
   // ------------------------------------------------ camera & input
   updateCamera() {
     // she can look down at herself and the city, and all the way to the zenith
-    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.32, 1.45);
+    this.pitch = THREE.MathUtils.clamp(this.pitch, -0.46, 1.45);
     const d = new THREE.Vector3(
       Math.sin(this.yaw) * Math.cos(this.pitch),
       Math.sin(this.pitch),
@@ -707,11 +707,12 @@ export class SkyNight {
       const e = k * k * (3 - 2 * k);
       if (this.onFlash) this.onFlash(Math.max(0, 1 - this.phaseT / 1.1));
       // drift closer and rise, the way a crane shot settles
+      // start low and wide behind her, rise to her shoulder, then look up
       this.camera.position.set(
         0,
-        THREE.MathUtils.lerp(0.55, 1.20, e),
-        THREE.MathUtils.lerp(2.60, 1.15, e));
-      const lookY = THREE.MathUtils.lerp(1.15, 3.60, e * e);
+        THREE.MathUtils.lerp(0.80, 1.44, e),
+        THREE.MathUtils.lerp(2.60, 0.72, e));
+      const lookY = THREE.MathUtils.lerp(1.42, 3.90, e * e);
       this.camera.lookAt(0, lookY, -8.0);
       this.fov = THREE.MathUtils.lerp(44, 60, e);
       this.camera.fov = this.fov;
@@ -813,8 +814,10 @@ export class SkyNight {
     for (const s of this.namedStars) {
       v.copy(s.pos).project(this.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) { s.el.style.opacity = 0; continue; }
-      s.el.style.opacity = speaking ? 0 : 0.75;
-      s.el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W) | 0}px, ${((-v.y * 0.5 + 0.5) * H + 14) | 0}px)`;
+      const sy = (-v.y * 0.5 + 0.5) * H + 14;
+      // keep clear of the whisper line that lives along the top of the frame
+      s.el.style.opacity = (speaking || sy < H * 0.19) ? 0 : 0.75;
+      s.el.style.transform = `translate(${((v.x * 0.5 + 0.5) * W) | 0}px, ${sy | 0}px)`;
     }
   }
 

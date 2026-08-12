@@ -1054,7 +1054,8 @@ $('helpBtn').addEventListener('click', () => showTut(0));
 $('siStart').addEventListener('click', () => {
   if (!skyNight.ready) { setTimeout(() => $('siStart').click(), 400); return; }
   $('skyIntro').classList.remove('on');
-  $('flash').style.transition = 'opacity 1.2s ease';
+  // the tear opens, and she falls through it
+  $('flash').style.transition = 'opacity .55s ease';
   $('flash').style.opacity = 1;
   setTimeout(() => {
     S.mode = 'sky';
@@ -1064,14 +1065,20 @@ $('siStart').addEventListener('click', () => {
     $('finale').classList.remove('on');
     $('prog').classList.remove('on');
     chapters.forEach(c => c.classList.remove('on'));
-    bloom.strength = 0.8;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 0.92;
     finalPass.uniforms.uWarm.value = 0.08;
     finalPass.uniforms.uCA.value = 0.0009;
+    // the flash is now driven frame by frame by the wormhole itself
+    $('flash').style.transition = 'none';
+    skyNight.onFlash = v => { $('flash').style.opacity = String(v); };
+    skyNight.onArrived = () => {
+      document.body.classList.add('skyPlay');
+      if (!skyNight.tutorialDone && skyNight.stationIdx < 7) showTut(0);
+      else skyNight.whisperToStation();
+    };
     skyNight.enter();
-    $('flash').style.opacity = 0;
-    setTimeout(() => { if (!skyNight.tutorialDone && skyNight.stationIdx < 7) showTut(0); }, 3000);
-  }, 1200);
+    $('flash').style.opacity = '0';
+  }, 560);
 });
 $('memClose').addEventListener('click', () => {
   $('memCard').classList.remove('on');
@@ -1082,14 +1089,14 @@ $('gyroBtn').addEventListener('click', () => skyNight.enableGyro());
 // lens / hold-to-expose / drag routing for sky mode
 const P = { down: false, x: 0, y: 0, t: 0, moved: 0, exposing: false };
 addEventListener('pointerdown', e => {
-  if (S.mode !== 'sky') return;
+  if (S.mode !== 'sky' || skyNight.phase !== 'play') return;
   P.down = true; P.x = e.clientX; P.y = e.clientY;
   P.t = performance.now(); P.moved = 0;
   skyNight.moveLens(e.clientX, e.clientY);
   P.exposing = skyNight.pressStart(e.clientX, e.clientY);
 });
 addEventListener('pointermove', e => {
-  if (S.mode !== 'sky') return;
+  if (S.mode !== 'sky' || skyNight.phase !== 'play') return;
   skyNight.moveLens(e.clientX, e.clientY);
   if (!P.down) return;
   const dx = e.clientX - P.x, dy = e.clientY - P.y;
@@ -1385,6 +1392,12 @@ function frame() {
 
   else if (S.mode === 'sky') {
     skyNight.update(dt, time);
+    // the wormhole burns hot; the night that follows is quiet
+    const wh = skyNight.phase === 'wormhole';
+    bloom.strength += ((wh ? 0.72 : 0.8) - bloom.strength) * (1 - Math.exp(-dt * 3));
+    finalPass.uniforms.uStreak.value += ((wh ? 0.55 : 0) - finalPass.uniforms.uStreak.value) * (1 - Math.exp(-dt * 3));
+    finalPass.uniforms.uCA.value = wh ? 0.0045 : 0.0009;
+    AudioEngine.setRumble(wh ? 0.75 : 0);
   }
 
   // camera shake (intro fall)

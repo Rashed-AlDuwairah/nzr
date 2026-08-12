@@ -120,14 +120,20 @@ export class SkyNight {
     this.audio = null;
 
     // quest state
-    this.stationIdx = Math.min(+(localStorage.getItem('noor_sky_station') || 0), 6);
-    this.wishes = +(localStorage.getItem('noor_sky_wishes') || 0);
+    // The quest never resumes from a previous visit. Saved progress meant
+    // that re-entering the sky could hand her the ending on the first star
+    // she touched, so every arrival starts at the beginning.
+    for (const k of ['noor_sky_station', 'noor_sky_wishes', 'noor_sky_tut']) {
+      try { localStorage.removeItem(k); } catch (_) {}
+    }
+    this.stationIdx = 0;
+    this.wishes = 0;
     this.exposing = false;
     this.exposure = 0;
     this.lensDir = new THREE.Vector3(0, 0, -1);
     this.finaleT = -1;
     this.photoParts = null;
-    this.tutorialDone = localStorage.getItem('noor_sky_tut') === '1';
+    this.tutorialDone = false;
     // the arrival: wormhole -> she is sitting on the ground in Riyadh
     this.phase = 'idle';      // idle | wormhole | arriving | play
     this.phaseT = 0;
@@ -479,7 +485,6 @@ export class SkyNight {
         m.caught = true;
         m.mesh.material.uniforms.uGold.value = 1;
         this.wishes++;
-        localStorage.setItem('noor_sky_wishes', this.wishes);
         this.refreshHud();
         if (navigator.vibrate) navigator.vibrate(30);
         const t = document.getElementById('wishToast');
@@ -564,14 +569,12 @@ export class SkyNight {
     }
     document.getElementById('memCard').classList.add('on');
     this.stationIdx++;
-    localStorage.setItem('noor_sky_station', this.stationIdx);
     this.refreshHud();
   }
 
   // ------------------------------------------------ finale: light develops the photograph
   startFinale() {
     this.stationIdx = 7;
-    localStorage.setItem('noor_sky_station', 7);
     this.refreshHud();
     this.finaleT = 0;
     // seven light orbs rise from the stations

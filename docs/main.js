@@ -1071,7 +1071,6 @@ $('tutNext').addEventListener('click', () => {
   if (tutIdx < TUT_STEPS.length - 1) { showTut(tutIdx + 1); return; }
   $('tut').classList.remove('on');
   skyNight.tutorialDone = true;
-  localStorage.setItem('noor_sky_tut', '1');
   skyNight.whisperToStation();
 });
 $('helpBtn').addEventListener('click', () => showTut(0));

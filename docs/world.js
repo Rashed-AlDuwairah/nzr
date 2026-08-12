@@ -319,145 +319,239 @@ function figureMaterial(baseHex, rimBoost = 1.0) {
   });
 }
 
+// ------------------------------------------------------------------
+//  نورة — one continuous surface, the way a figure is actually modelled.
+//  Cross-sections are lofted along the body: hem, hips, waist, bust,
+//  shoulders, neck, skull. Nothing is a stacked primitive.
+// ------------------------------------------------------------------
+
+// A superellipse ring: k = 1 gives an ellipse, lower k gives a fuller,
+// more human cross-section than a plain tube.
+function ringPoint(a, b, t, k) {
+  const c = Math.cos(t), s = Math.sin(t);
+  return [
+    a * Math.sign(c) * Math.pow(Math.abs(c), k),
+    b * Math.sign(s) * Math.pow(Math.abs(s), k),
+  ];
+}
+
+// Loft a list of cross-sections into a single smooth skin.
+// Each section: { c: Vector3 centre, a: half-width, b: half-depth,
+//                 k: fullness, ex: right axis, ey: depth axis, warp(fn) }
+function loft(sections, RAD = 56, capTop = true, capBottom = true) {
+  const rows = sections.length;
+  const pos = [];
+  const EX = new THREE.Vector3(1, 0, 0);
+  const EY = new THREE.Vector3(0, 0, 1);
+  for (const s of sections) {
+    const ex = s.ex || EX, ey = s.ey || EY;
+    for (let i = 0; i < RAD; i++) {
+      const t = (i / RAD) * Math.PI * 2;
+      let [u, v] = ringPoint(s.a, s.b, t, s.k ?? 1);
+      if (s.warp) { const r = s.warp(t, u, v); u = r[0]; v = r[1]; }
+      pos.push(
+        s.c.x + ex.x * u + ey.x * v,
+        s.c.y + ex.y * u + ey.y * v,
+        s.c.z + ex.z * u + ey.z * v);
+    }
+  }
+  const idx = [];
+  for (let r = 0; r < rows - 1; r++) {
+    for (let i = 0; i < RAD; i++) {
+      const j = (i + 1) % RAD;
+      const a = r * RAD + i, b = r * RAD + j;
+      const c = (r + 1) * RAD + i, d = (r + 1) * RAD + j;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  // close the ends so the silhouette never shows a hollow tube
+  const cap = (rowStart, centre, flip) => {
+    const ci = pos.length / 3;
+    pos.push(centre.x, centre.y, centre.z);
+    for (let i = 0; i < RAD; i++) {
+      const j = (i + 1) % RAD;
+      if (flip) idx.push(ci, rowStart + j, rowStart + i);
+      else      idx.push(ci, rowStart + i, rowStart + j);
+    }
+  };
+  if (capBottom) cap(0, sections[0].c, true);
+  if (capTop)    cap((rows - 1) * RAD, sections[rows - 1].c, false);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
 export function buildNoura() {
   const g = new THREE.Group();
-  const skin  = figureMaterial(0x14141d, 0.95);
-  // the dress carries a little light so her black hair reads against it
-  const cloth = figureMaterial(0x191a28, 1.15);
-  const hairMat = figureMaterial(0x040407, 1.75);
+  const skin  = figureMaterial(0x17171f, 1.0);
+  const cloth = figureMaterial(0x101018, 1.25);
+  const hairMat = figureMaterial(0x030307, 1.5);
 
-  // She stands about 1.62 tall, barefoot on the warm sand.
+  // ---------------------------------------------------------------
+  //  the body: hem -> skirt -> hips -> waist -> bust -> shoulders
+  //            -> neck -> skull, in one skin
+  //  (her legs live inside the dress, so the column reads as cloth)
+  // ---------------------------------------------------------------
+  const fold = (amp, freq) => (t, u, v) => {
+    const f = 1 + Math.sin(t * freq) * amp + Math.sin(t * (freq * 2 + 1)) * amp * 0.4;
+    return [u * f, v * f];
+  };
 
-  // ---- feet, just showing under the hem
-  for (const sx of [-1, 1]) {
-    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), skin);
-    foot.scale.set(1.0, 0.62, 1.5);
-    foot.position.set(sx * 0.075, 0.038, -0.015);
-    g.add(foot);
-  }
+  const body = [
+    { y: 0.000, a: 0.235, b: 0.205, k: 0.90, z:  0.010, w: fold(0.055, 7) },
+    { y: 0.060, a: 0.222, b: 0.196, k: 0.90, z:  0.008, w: fold(0.050, 7) },
+    { y: 0.180, a: 0.198, b: 0.178, k: 0.92, z:  0.006, w: fold(0.042, 7) },
+    { y: 0.320, a: 0.176, b: 0.160, k: 0.94, z:  0.004, w: fold(0.034, 7) },
+    { y: 0.460, a: 0.160, b: 0.146, k: 0.95, z:  0.002, w: fold(0.026, 7) },
+    { y: 0.600, a: 0.150, b: 0.135, k: 0.96, z:  0.000, w: fold(0.018, 7) },
+    { y: 0.720, a: 0.146, b: 0.128, k: 0.96, z: -0.004 },
+    { y: 0.820, a: 0.148, b: 0.126, k: 0.95, z: -0.010 },   // hips, widest
+    { y: 0.890, a: 0.132, b: 0.112, k: 0.94, z: -0.012 },
+    { y: 0.960, a: 0.104, b: 0.092, k: 0.93, z: -0.010 },   // waist
+    { y: 1.020, a: 0.110, b: 0.096, k: 0.93, z: -0.004 },
+    { y: 1.090, a: 0.122, b: 0.108, k: 0.93, z:  0.004 },
+    { y: 1.150, a: 0.128, b: 0.116, k: 0.92, z:  0.008 },   // bust
+    { y: 1.210, a: 0.132, b: 0.104, k: 0.92, z:  0.004 },
+    { y: 1.275, a: 0.146, b: 0.094, k: 0.90, z:  0.000 },
+    { y: 1.325, a: 0.166, b: 0.088, k: 0.85, z: -0.004 },   // shoulders
+    { y: 1.365, a: 0.148, b: 0.082, k: 0.85, z: -0.006 },
+    { y: 1.400, a: 0.088, b: 0.072, k: 0.92, z: -0.004 },   // trapezius into neck
+    { y: 1.445, a: 0.052, b: 0.054, k: 0.98, z:  0.000 },   // neck
+    { y: 1.500, a: 0.050, b: 0.053, k: 0.98, z:  0.006 },
+    { y: 1.540, a: 0.064, b: 0.072, k: 0.96, z:  0.010 },   // jaw
+    { y: 1.585, a: 0.080, b: 0.090, k: 0.97, z:  0.006 },   // cheeks
+    { y: 1.635, a: 0.086, b: 0.094, k: 0.98, z:  0.000 },   // skull
+    { y: 1.685, a: 0.076, b: 0.082, k: 0.98, z: -0.006 },
+    { y: 1.725, a: 0.050, b: 0.054, k: 0.98, z: -0.010 },
+    { y: 1.748, a: 0.018, b: 0.019, k: 0.98, z: -0.012 },
+  ].map(s => ({ c: V(0, s.y, s.z), a: s.a, b: s.b, k: s.k, warp: s.w }));
 
-  // ---- the long dress, from shoulder to ankle, flaring as it falls
-  const dressGeo = new THREE.CylinderGeometry(0.180, 0.272, 1.20, 40, 20, true);
-  {
-    const p = dressGeo.attributes.position;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) {
-      v.fromBufferAttribute(p, i);
-      const t = (v.y + 0.60) / 1.20;              // 0 at the hem, 1 at the shoulder
-      // a waist, and soft folds that deepen toward the hem
-      const waist = 1.0 - 0.14 * Math.exp(-Math.pow((t - 0.62) * 4.4, 2.0));
-      const ang = Math.atan2(v.z, v.x);
-      const folds = 1.0 + Math.sin(ang * 7.0) * 0.030 * Math.pow(1 - t, 1.5)
-                        + Math.sin(ang * 13.0 + 1.7) * 0.016 * Math.pow(1 - t, 2.0);
-      v.x *= waist * folds;
-      v.z *= waist * folds;
-      v.y += Math.sin(ang * 7.0) * 0.020 * Math.pow(1 - t, 2.2);   // uneven hem
-      p.setXYZ(i, v.x, v.y, v.z);
+  const bodyMesh = new THREE.Mesh(loft(body, 56), cloth);
+  g.add(bodyMesh);
+
+  // the head and neck read as skin, so they are drawn again, just inside
+  const headSkin = [
+    { y: 1.425, a: 0.050, b: 0.052, z:  0.000 },
+    { y: 1.500, a: 0.048, b: 0.051, z:  0.006 },
+    { y: 1.540, a: 0.062, b: 0.070, z:  0.010 },
+    { y: 1.585, a: 0.078, b: 0.088, z:  0.006 },
+    { y: 1.635, a: 0.084, b: 0.092, z:  0.000 },
+    { y: 1.685, a: 0.074, b: 0.080, z: -0.006 },
+    { y: 1.725, a: 0.048, b: 0.052, z: -0.010 },
+    { y: 1.746, a: 0.017, b: 0.018, z: -0.012 },
+  ].map(s => ({ c: V(0, s.y, s.z), a: s.a, b: s.b, k: 0.98 }));
+  g.add(new THREE.Mesh(loft(headSkin, 44), skin));
+
+  // ---------------------------------------------------------------
+  //  arms: lofted along a curve, tapering shoulder -> wrist
+  // ---------------------------------------------------------------
+  function arm(side, elbowOut, wristIn, holdsBook) {
+    const s = side;
+    // the first rings start inside the torso so the shoulder reads as
+    // one joint instead of a plank stuck to her side
+    const curve = new THREE.CatmullRomCurve3([
+      V(s * 0.080, 1.322, -0.006),
+      V(s * 0.135, 1.300, -0.010),
+      V(s * 0.170, 1.215, -0.014),
+      V(s * 0.184, 1.090, -0.006),   // elbow
+      V(s * (0.184 - wristIn), 0.995,  0.010),
+      V(s * (0.174 - wristIn), 0.905,  0.024 + (holdsBook ? 0.02 : 0)),
+    ], false, 'catmullrom', 0.4);
+    const N = 18;
+    const radii = [0.086, 0.076, 0.066, 0.056, 0.049, 0.045, 0.042, 0.041,
+                   0.040, 0.040, 0.041, 0.038, 0.034, 0.031, 0.030, 0.030,
+                   0.031, 0.030];
+    const rings = [];
+    const up = V(0, 1, 0);
+    for (let i = 0; i < N; i++) {
+      const t = i / (N - 1);
+      const c = curve.getPoint(t);
+      const tan = curve.getTangent(t).normalize();
+      const ex = new THREE.Vector3().crossVectors(up, tan).normalize();
+      const ey = new THREE.Vector3().crossVectors(tan, ex).normalize();
+      const r = radii[i] * (1 + elbowOut * 0);
+      rings.push({ c, a: r, b: r * 0.88, k: 0.95, ex, ey });
     }
-    dressGeo.computeVertexNormals();
-  }
-  const dress = new THREE.Mesh(dressGeo, cloth);
-  dress.position.set(0, 0.68, 0);
-  g.add(dress);
-
-  // ---- shoulders, neck, head — tilted back to look up
-  const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.175, 28, 20), cloth);
-  shoulders.scale.set(1.30, 0.60, 0.82);
-  shoulders.position.set(0, 1.295, 0);
-  g.add(shoulders);
-
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.058, 0.10, 18), skin);
-  neck.position.set(0, 1.365, 0.006);
-  neck.rotation.x = -0.16;
-  g.add(neck);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.104, 34, 28), skin);
-  head.scale.set(1.0, 1.10, 1.04);
-  head.position.set(0, 1.470, 0.004);
-  head.rotation.x = -0.34;
-  g.add(head);
-
-  // ---- her hair: black, past the shoulder blades
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.113, 34, 28), hairMat);
-  cap.scale.set(1.04, 1.07, 1.10);
-  cap.position.set(0, 1.474, -0.012);
-  cap.rotation.x = -0.34;
-  g.add(cap);
-
-  // narrower than her shoulders, or it reads as a cape instead of hair
-  const fallGeo = new THREE.CylinderGeometry(0.118, 0.142, 0.66, 32, 22, true);
-  {
-    const p = fallGeo.attributes.position;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) {
-      v.fromBufferAttribute(p, i);
-      const t = (v.y + 0.33) / 0.66;              // 0 at the ends, 1 at the nape
-      const ang = Math.atan2(v.z, v.x);
-      v.z += (1 - t) * 0.030 - 0.006;             // drifts back as it falls
-      if (v.z > 0) v.z *= 0.42;                   // lies flat against her back
-      v.x *= 1.0 + Math.pow(1 - t, 2.0) * 0.10;
-      // the ends part into strands instead of a straight hem
-      v.y += Math.sin(ang * 5.0) * 0.050 * Math.pow(1 - t, 1.6)
-           - Math.pow(1 - t, 3.0) * 0.055;
-      p.setXYZ(i, v.x, v.y, v.z);
+    // the hand: a small flattened continuation
+    const end = curve.getPoint(1);
+    const tan = curve.getTangent(1).normalize();
+    const ex = new THREE.Vector3().crossVectors(up, tan).normalize();
+    const ey = new THREE.Vector3().crossVectors(tan, ex).normalize();
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 4;
+      rings.push({
+        c: end.clone().addScaledVector(tan, 0.030 * t),
+        a: 0.034 * (1 - t * 0.45), b: 0.019 * (1 - t * 0.3), k: 0.9, ex, ey,
+      });
     }
-    fallGeo.computeVertexNormals();
+    return new THREE.Mesh(loft(rings, 26), skin);
   }
-  const fall = new THREE.Mesh(fallGeo, hairMat);
-  fall.position.set(0, 1.100, -0.052);
-  fall.rotation.x = 0.05;
-  g.add(fall);
+  g.add(arm(-1, 0, 0.010, false));
+  g.add(arm( 1, 0, 0.006, true));
 
-  for (let i = 0; i < 7; i++) {                    // loose strands
-    const a = (i / 6 - 0.5) * 1.5;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.003, 0.24 + (i % 3) * 0.06, 6), hairMat);
-    s.position.set(Math.sin(a) * 0.098, 0.930 - (i % 3) * 0.028, -0.082 + Math.cos(a) * 0.016);
-    s.rotation.set(0.05, 0, Math.sin(a) * 0.22);
-    g.add(s);
-  }
+  // ---------------------------------------------------------------
+  //  her hair: its own skin, narrower than her shoulders,
+  //  hugging the skull and falling behind her
+  // ---------------------------------------------------------------
+  const hair = [
+    { y: 1.760, a: 0.030, b: 0.032, z: -0.012 },
+    { y: 1.730, a: 0.058, b: 0.062, z: -0.012 },
+    { y: 1.690, a: 0.084, b: 0.090, z: -0.010 },
+    { y: 1.640, a: 0.095, b: 0.103, z: -0.004 },
+    { y: 1.590, a: 0.092, b: 0.100, z:  0.000 },
+    { y: 1.545, a: 0.082, b: 0.092, z: -0.010 },
+    { y: 1.495, a: 0.076, b: 0.080, z: -0.030 },
+    { y: 1.430, a: 0.098, b: 0.078, z: -0.044 },
+    { y: 1.340, a: 0.128, b: 0.076, z: -0.054 },
+    { y: 1.230, a: 0.146, b: 0.072, z: -0.060 },
+    { y: 1.120, a: 0.152, b: 0.070, z: -0.064 },
+    { y: 1.020, a: 0.150, b: 0.068, z: -0.066 },
+    { y: 0.940, a: 0.140, b: 0.062, z: -0.066 },
+    { y: 0.880, a: 0.120, b: 0.054, z: -0.064 },
+    { y: 0.840, a: 0.086, b: 0.040, z: -0.060 },
+    { y: 0.818, a: 0.040, b: 0.022, z: -0.056 },
+  ].map((s, i, arr) => ({
+    c: V(0, s.y, s.z), a: s.a, b: s.b, k: 0.95,
+    // strands: a gentle scallop that deepens toward the ends
+    warp: (t, u, v) => {
+      const depth = i / (arr.length - 1);
+      const f = 1 + Math.sin(t * 9.0) * 0.045 * depth + Math.sin(t * 5.0 + 1.3) * 0.03 * depth;
+      // the front is pulled back so it frames the face instead of covering it
+      const front = Math.max(0, Math.sin(t));
+      return [u * f * (1 - front * 0.30), v * f * (1 - front * 0.55)];
+    },
+  }));
+  g.add(new THREE.Mesh(loft(hair, 48), hairMat));
 
-  // ---- arms hanging at her sides
-  for (const sx of [-1, 1]) {
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.046, 0.24, 6, 14), cloth);
-    upper.position.set(sx * 0.205, 1.155, 0.004);
-    upper.rotation.set(0.03, 0, sx * 0.075);
-    g.add(upper);
-    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.040, 0.235, 6, 14), skin);
-    // the right forearm swings a little forward, carrying the book
-    fore.position.set(sx * 0.228, 0.905, sx > 0 ? -0.055 : 0.004);
-    fore.rotation.set(sx > 0 ? -0.26 : 0.02, 0, sx * 0.05);
-    g.add(fore);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 12), skin);
-    hand.scale.set(0.85, 1.15, 0.62);
-    hand.position.set(sx * 0.238, 0.775, sx > 0 ? -0.088 : 0.004);
-    g.add(hand);
-  }
-
-  // ---- the book, closed, carried against her hip
+  // ---------------------------------------------------------------
+  //  the book, closed, held down at her right side
+  // ---------------------------------------------------------------
   const book = new THREE.Group();
-  const coverMat = figureMaterial(0x0d0b12, 1.35);
-  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.225, 0.040), coverMat);
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.135, 0.185, 0.030), cloth);
   book.add(cover);
-  // the page block, catching what light there is
   const pages = new THREE.Mesh(
-    new THREE.BoxGeometry(0.140, 0.205, 0.030),
+    new THREE.BoxGeometry(0.126, 0.172, 0.022),
     new THREE.ShaderMaterial({
       uniforms: {},
-      vertexShader: `varying vec3 vN; varying vec2 vUv;
-        void main(){ vN = normalize(mat3(modelMatrix) * normal); vUv = uv;
+      vertexShader: `varying vec3 vN; void main(){ vN = normalize(mat3(modelMatrix) * normal);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `varying vec3 vN; varying vec2 vUv;
+      fragmentShader: `varying vec3 vN;
         void main(){
-          float lines = 0.82 + 0.18 * sin(vUv.y * 190.0);   // the stacked page edges
-          vec3 col = vec3(0.40, 0.37, 0.33) * lines;
-          col *= 0.45 + 0.55 * clamp(vN.y * 0.5 + 0.5, 0.0, 1.0);
+          float edge = pow(1.0 - abs(vN.z), 2.0);
+          vec3 col = mix(vec3(0.10, 0.09, 0.08), vec3(0.52, 0.47, 0.40), edge);
+          col *= 0.55 + 0.45 * clamp(vN.y * 0.5 + 0.5, 0.0, 1.0);
           gl_FragColor = vec4(col, 1.0); }`
     })
   );
-  pages.position.z = 0.006;
+  pages.position.x = -0.006;
   book.add(pages);
-  book.position.set(0.262, 0.745, -0.092);
-  book.rotation.set(0.20, 0.16, 0.10);
+  book.position.set(0.212, 0.845, 0.052);
+  book.rotation.set(0.16, 0.14, 0.07);
   g.add(book);
   g.userData.book = book;
 

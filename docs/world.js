@@ -26,7 +26,7 @@ function drawSkylineTexture() {
     const cw = w / cols, ch = h / rows;
     for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
       if (rnd() > density) continue;
-      const a = 0.35 + rnd() * 0.65;
+      const a = 0.48 + rnd() * 0.52;
       const c = warm
         ? `rgba(255,${190 + (rnd() * 40 | 0)},${110 + (rnd() * 60 | 0)},${a})`
         : `rgba(190,215,255,${a})`;
@@ -50,86 +50,136 @@ function drawSkylineTexture() {
     } else {
       g.fillRect(x, top, w, h);
     }
+    // a stepped crown, the way most towers actually finish
+    if (opts.step) {
+      const sw = w * 0.62, sh = h * 0.10;
+      g.fillRect(x + (w - sw) / 2, top - sh, sw, sh + 2);
+      const sw2 = w * 0.34;
+      g.fillRect(x + (w - sw2) / 2, top - sh * 1.7, sw2, sh * 0.8);
+    }
     if (opts.crown) { // rooftop mast
       g.fillRect(x + w / 2 - 2, top - opts.crown, 4, opts.crown);
       g.fillStyle = 'rgba(255,70,60,0.95)';
       g.beginPath(); g.arc(x + w / 2, top - opts.crown, 4.5, 0, 7); g.fill();
     }
+    // the near edge catching the haze, so towers read as volumes not cutouts
+    const eg = g.createLinearGradient(x, 0, x + w, 0);
+    eg.addColorStop(0,    'rgba(255,186,120,0.16)');
+    eg.addColorStop(0.14, 'rgba(255,186,120,0.02)');
+    eg.addColorStop(0.86, 'rgba(120,150,220,0.02)');
+    eg.addColorStop(1,    'rgba(120,150,220,0.13)');
+    g.fillStyle = eg;
+    g.fillRect(x, top, w, h);
     windows(x, w, top, h, opts.density ?? 0.28, opts.warm ?? 1);
   }
 
-  // ---- برج المملكة — the great arch
+  // ---- برج المملكة — the slab that opens into an arch, with its sky bridge
   function kingdomCentre(cx, scale) {
-    const w = 158 * scale, h = 760 * scale;
+    const w = 196 * scale, h = 800 * scale;
     const x = cx - w / 2, top = GROUND - h;
+    const legIn = w * 0.315, legOut = w * 0.685;   // the two legs of the arch
+    const archFoot = top + h * 0.335;              // where the opening begins
     g.save();
+
+    // the body: wide at the base, drawing in as it rises, then flaring out
+    // again into the two horns that carry the bridge
     g.fillStyle = SIL;
-    // body: a slab whose shoulders curve inward toward the arch
     g.beginPath();
-    g.moveTo(x, GROUND);
-    g.lineTo(x, top + h * 0.30);
-    g.quadraticCurveTo(x + w * 0.02, top + h * 0.06, x + w * 0.30, top);
-    g.lineTo(x + w * 0.70, top);
-    g.quadraticCurveTo(x + w * 0.98, top + h * 0.06, x + w, top + h * 0.30);
-    g.lineTo(x + w, GROUND);
+    g.moveTo(x - w * 0.030, GROUND);
+    g.lineTo(x + w * 0.045, top + h * 0.50);
+    g.quadraticCurveTo(x + w * 0.048, top + h * 0.19, x + w * 0.205, top + h * 0.010);
+    g.lineTo(x + w * 0.330, top);
+    g.lineTo(x + w * 0.670, top);
+    g.quadraticCurveTo(x + w * 0.952, top + h * 0.19, x + w * 0.920, top + h * 0.50);
+    g.lineTo(x + w * 1.030, GROUND);
     g.closePath();
     g.fill();
-    windows(x + w * 0.06, w * 0.88, top + h * 0.30, h * 0.66, 0.26);
-    // the opening
+    windows(x + w * 0.05, w * 0.90, archFoot + h * 0.02, h * 0.62, 0.30);
+
+    // cut the opening: a tall parabola between the legs
     g.globalCompositeOperation = 'destination-out';
     g.beginPath();
-    g.moveTo(x + w * 0.30, top + h * 0.02);
-    g.lineTo(x + w * 0.30, top + h * 0.30);
-    g.quadraticCurveTo(cx, top + h * 0.58, x + w * 0.70, top + h * 0.30);
-    g.lineTo(x + w * 0.70, top + h * 0.02);
+    g.moveTo(x + legIn, top - h * 0.02);
+    g.lineTo(x + legIn, archFoot);
+    g.quadraticCurveTo(cx, archFoot + h * 0.235, x + legOut, archFoot);
+    g.lineTo(x + legOut, top - h * 0.02);
     g.closePath();
     g.fill();
     g.globalCompositeOperation = 'source-over';
-    // the sky bridge across the top
+
+    // the sky bridge laid across the horns
     g.fillStyle = SIL;
-    g.fillRect(x + w * 0.28, top + h * 0.045, w * 0.44, h * 0.030);
-    g.fillStyle = 'rgba(180,215,255,0.85)';
-    for (let i = 0; i < 11; i++)
-      g.fillRect(x + w * 0.30 + i * (w * 0.40 / 11), top + h * 0.055, 3, 3);
-    // the crown of blue light along the arch
-    g.strokeStyle = 'rgba(120,190,255,0.55)';
-    g.lineWidth = 2.5;
+    g.fillRect(x + w * 0.275, top + h * 0.030, w * 0.450, h * 0.026);
+    g.fillStyle = 'rgba(190,220,255,0.9)';
+    for (let i = 0; i < 14; i++)
+      g.fillRect(x + w * 0.295 + i * (w * 0.410 / 14), top + h * 0.038, 2.5, 3.5);
+
+    // the blue light that traces the inside of the arch at night
+    g.strokeStyle = 'rgba(120,195,255,0.6)';
+    g.lineWidth = 3;
     g.beginPath();
-    g.moveTo(x + w * 0.30, top + h * 0.30);
-    g.quadraticCurveTo(cx, top + h * 0.58, x + w * 0.70, top + h * 0.30);
+    g.moveTo(x + legIn, archFoot);
+    g.quadraticCurveTo(cx, archFoot + h * 0.235, x + legOut, archFoot);
     g.stroke();
+    // and the vertical seams up both legs
+    g.strokeStyle = 'rgba(120,195,255,0.28)';
+    g.lineWidth = 2;
+    for (const lx of [x + legIn, x + legOut]) {
+      g.beginPath(); g.moveTo(lx, archFoot); g.lineTo(lx, top + h * 0.03); g.stroke();
+    }
+    // aircraft lights on both horns
+    g.fillStyle = 'rgba(255,70,60,0.95)';
+    for (const hx of [x + w * 0.22, x + w * 0.78]) {
+      g.beginPath(); g.arc(hx, top + h * 0.012, 4, 0, 7); g.fill();
+    }
     g.restore();
   }
 
   // ---- برج الفيصلية — the spire with its glass ball
   function faisaliah(cx, scale) {
-    const w = 112 * scale, h = 690 * scale;
-    const top = GROUND - h;
+    const w = 150 * scale, h = 720 * scale;
+    const top = GROUND - h;                    // the tip of the spire
+    const ballY = top + h * 0.215, br = w * 0.098;
+    g.save();
+
+    // the pyramid: four legs that curve slightly inward as they climb
     g.fillStyle = SIL;
-    // four legs tapering to a point
     g.beginPath();
     g.moveTo(cx - w / 2, GROUND);
-    g.lineTo(cx - w * 0.045, top + h * 0.30);
-    g.lineTo(cx + w * 0.045, top + h * 0.30);
-    g.lineTo(cx + w / 2, GROUND);
+    g.quadraticCurveTo(cx - w * 0.155, top + h * 0.62, cx - w * 0.018, ballY + br * 0.55);
+    g.lineTo(cx + w * 0.018, ballY + br * 0.55);
+    g.quadraticCurveTo(cx + w * 0.155, top + h * 0.62, cx + w / 2, GROUND);
     g.closePath(); g.fill();
-    windows(cx - w * 0.36, w * 0.72, GROUND - h * 0.62, h * 0.62, 0.22);
-    // the ball
-    const by = top + h * 0.20, br = w * 0.215;
-    g.beginPath(); g.arc(cx, by, br, 0, 7); g.fill();
-    g.fillStyle = 'rgba(190,225,255,0.30)';
-    g.beginPath(); g.arc(cx, by, br * 0.82, 0, 7); g.fill();
-    g.fillStyle = 'rgba(230,245,255,0.75)';
-    g.beginPath(); g.arc(cx - br * 0.28, by - br * 0.26, br * 0.22, 0, 7); g.fill();
-    // spire above the ball
+    windows(cx - w * 0.30, w * 0.60, GROUND - h * 0.55, h * 0.55, 0.20);
+
+    // the two inner legs, so it reads as a frame and not a solid wedge
+    g.strokeStyle = 'rgba(150,190,240,0.22)';
+    g.lineWidth = 2;
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(cx + s * w * 0.28, GROUND);
+      g.quadraticCurveTo(cx + s * w * 0.10, top + h * 0.55, cx, ballY + br);
+      g.stroke();
+    }
+
+    // the glass ball
+    g.fillStyle = SIL;
+    g.beginPath(); g.arc(cx, ballY, br, 0, 7); g.fill();
+    g.fillStyle = 'rgba(200,230,255,0.34)';
+    g.beginPath(); g.arc(cx, ballY, br * 0.86, 0, 7); g.fill();
+    g.fillStyle = 'rgba(235,248,255,0.85)';
+    g.beginPath(); g.arc(cx - br * 0.30, ballY - br * 0.28, br * 0.26, 0, 7); g.fill();
+
+    // the spire above it
     g.fillStyle = SIL;
     g.beginPath();
-    g.moveTo(cx - w * 0.035, by - br * 0.6);
-    g.lineTo(cx, top - h * 0.055);
-    g.lineTo(cx + w * 0.035, by - br * 0.6);
+    g.moveTo(cx - w * 0.026, ballY - br * 0.55);
+    g.lineTo(cx, top);
+    g.lineTo(cx + w * 0.026, ballY - br * 0.55);
     g.closePath(); g.fill();
     g.fillStyle = 'rgba(255,80,60,0.95)';
-    g.beginPath(); g.arc(cx, top - h * 0.05, 4, 0, 7); g.fill();
+    g.beginPath(); g.arc(cx, top + 4, 3.5, 0, 7); g.fill();
+    g.restore();
   }
 
   // ---- برج PIF — the twisted prism
@@ -170,20 +220,24 @@ function drawSkylineTexture() {
 
   // the landmarks, gathered where she is looking (texture centre = due north)
   const C = W * 0.5;
-  block(C - 1000, 74, 470, { density: 0.3, taper: 0.06, crown: 30 });
-  block(C - 830, 60, 380, { density: 0.26 });
-  pifTower(C - 620, 1.0);
-  block(C - 430, 78, 430, { density: 0.28, taper: 0.09 });
-  kingdomCentre(C - 150, 1.0);
-  block(C + 130, 66, 360, { density: 0.26, crown: 24 });
-  faisaliah(C + 350, 1.0);
-  block(C + 560, 80, 420, { density: 0.3, taper: 0.08 });
-  block(C + 730, 56, 500, { density: 0.24, crown: 34 });
-  block(C + 900, 96, 320, { density: 0.3 });
+  block(C - 1060, 74, 470, { density: 0.30, taper: 0.06, crown: 30 });
+  block(C - 900,  58, 380, { density: 0.26, step: 1 });
+  block(C - 790,  46, 300, { density: 0.24 });
+  pifTower(C - 640, 1.0);
+  block(C - 500,  70, 430, { density: 0.28, taper: 0.09, step: 1 });
+  block(C - 380,  50, 330, { density: 0.24 });
+  kingdomCentre(C - 170, 1.0);
+  block(C + 90,   58, 360, { density: 0.26, crown: 24 });
+  block(C + 185,  44, 280, { density: 0.24 });
+  faisaliah(C + 380, 1.0);
+  block(C + 570,  74, 420, { density: 0.30, taper: 0.08, step: 1 });
+  block(C + 700,  50, 340, { density: 0.24 });
+  block(C + 810,  56, 520, { density: 0.24, crown: 34 });
+  block(C + 940,  90, 320, { density: 0.30, step: 1 });
   // a second cluster, far to the other side
-  block(C + 1700, 66, 420, { density: 0.24, taper: 0.07, crown: 26 });
+  block(C + 1700, 66, 420, { density: 0.24, taper: 0.07, crown: 26, step: 1 });
   block(C + 1850, 50, 340, { density: 0.22 });
-  block(C - 1700, 72, 400, { density: 0.24, taper: 0.06 });
+  block(C - 1700, 72, 400, { density: 0.24, taper: 0.06, step: 1 });
   block(C - 1870, 54, 330, { density: 0.22, crown: 22 });
 
   const tex = new THREE.CanvasTexture(cv);
@@ -218,7 +272,7 @@ export function buildRiyadh() {
                                     + h21(floor(vUv * vec2(900.0, 260.0)) + 5.0) * 30.0);
         col *= mix(1.0, f, lit);
         // distance haze eats the base of the city
-        col = mix(col, vec3(0.16, 0.10, 0.06), smoothstep(0.30, 0.0, vUv.y) * 0.75);
+        col = mix(col, vec3(0.26, 0.16, 0.09), smoothstep(0.32, 0.0, vUv.y) * 0.72);
         gl_FragColor = vec4(col, t.a);
       }`
   });

@@ -157,25 +157,25 @@ export class SkyNight {
         ${NOISE}
         void main(){
           vec3 dn = normalize(vDir);
-          vec3 col = vec3(0.006, 0.008, 0.016);
+          vec3 col = vec3(0.013, 0.016, 0.030);
           float band = exp(-pow(dot(dn, uPole), 2.0) * 26.0);
           float coreBoost = 0.45 + 0.9 * pow(clamp(dot(dn, uCore), 0.0, 1.0), 2.0);
           float cloud = fbm(dn * 5.0 + vec3(2.7)) * 0.7 + fbm(dn * 12.0) * 0.3;
           float rift = smoothstep(0.30, 0.55, fbm(dn * 7.0 + vec3(8.1)));
           vec3 mw = mix(vec3(0.12, 0.12, 0.17), vec3(0.20, 0.17, 0.20), cloud);
-          col += band * mw * cloud * coreBoost * (0.35 + 0.65 * rift) * 1.6;
-          col += vec3(0.010, 0.012, 0.022) * (1.0 - abs(dn.y));
+          col += band * mw * cloud * coreBoost * (0.35 + 0.65 * rift) * 2.4;
+          col += vec3(0.020, 0.024, 0.042) * (1.0 - abs(dn.y));
           vec3 sp = dn * 380.0;
           vec3 sid = floor(sp), sf = fract(sp);
           vec3 spos = vec3(hash31(sid), hash31(sid + 3.1), hash31(sid + 7.7)) * 0.7 + 0.15;
           float sd = length(sf - spos);
           float sel = step(0.972, hash31(sid + 11.3));
-          col += smoothstep(0.09, 0.0, sd) * sel * 0.16 * vec3(0.8, 0.85, 1.0) * step(0.012, dn.y);
+          col += smoothstep(0.09, 0.0, sd) * sel * 0.26 * vec3(0.8, 0.85, 1.0) * step(0.012, dn.y);
           float ground = smoothstep(0.012, -0.02, dn.y);
           vec3 gcol = vec3(0.012, 0.008, 0.007) + fbm(dn * 40.0) * 0.008;
           col = mix(col, gcol, ground);
           float hz = exp(-abs(dn.y) * 26.0);
-          col += hz * vec3(0.055, 0.030, 0.012) * (1.0 - ground * 0.4);
+          col += hz * vec3(0.115, 0.062, 0.024) * (1.0 - ground * 0.4);
           col *= 1.0 - uDim * 0.55;   // the sky holds its breath for the finale
           gl_FragColor = vec4(col, 1.0);
         }`
@@ -228,7 +228,7 @@ export class SkyNight {
           float r = length(gl_PointCoord - 0.5);
           float a = smoothstep(0.5, 0.06, r);
           a += smoothstep(0.14, 0.0, r) * 0.9;
-          gl_FragColor = vec4(vColor * vTw, a * 0.9 * (1.0 - uDim * 0.6));
+          gl_FragColor = vec4(vColor * vTw * 1.18, a * 0.96 * (1.0 - uDim * 0.6));
         }`
     });
     const stars = new THREE.Points(geo, this.starMat);
@@ -247,7 +247,7 @@ export class SkyNight {
     const lgeo = new THREE.BufferGeometry();
     lgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lpos), 3));
     this.constLines = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({
-      color: 0x8fa8dd, transparent: true, opacity: 0.10,
+      color: 0x8fa8dd, transparent: true, opacity: 0.16,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     this.constLines.frustumCulled = false;

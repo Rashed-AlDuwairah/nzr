@@ -244,7 +244,7 @@ export function buildRiyadh() {
           // brightest toward the heart of the city
           float d = abs(fract(vUv.x + 0.5) - 0.5) * 2.0;
           float side = mix(1.0, 0.35, smoothstep(0.0, 0.55, d));
-          gl_FragColor = vec4(vec3(0.75, 0.42, 0.17), up * side * 0.26);
+          gl_FragColor = vec4(vec3(0.78, 0.46, 0.20), up * side * 0.34);
         }`
     })
   );
@@ -265,9 +265,9 @@ export function buildRiyadh() {
         void main(){
           float r = length(vP);
           float grain = h21(floor(vP * 3.0)) * 0.5 + h21(floor(vP * 11.0)) * 0.5;
-          vec3 col = mix(vec3(0.013, 0.010, 0.009), vec3(0.026, 0.020, 0.016), grain);
+          vec3 col = mix(vec3(0.022, 0.017, 0.014), vec3(0.042, 0.032, 0.025), grain);
           // the city's glow spilling across the sand toward the horizon
-          col += vec3(0.055, 0.028, 0.011) * smoothstep(200.0, 700.0, r);
+          col += vec3(0.075, 0.040, 0.017) * smoothstep(0.0, 620.0, r);
           gl_FragColor = vec4(col, 1.0);
         }`
     })
@@ -286,8 +286,8 @@ function figureMaterial(baseHex, rimBoost = 1.0) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uBase: { value: new THREE.Color(baseHex) },
-      uCity: { value: new THREE.Color(0xff9a44) },
-      uSky:  { value: new THREE.Color(0x7f9dff) },
+      uCity: { value: new THREE.Color(0xffa855) },
+      uSky:  { value: new THREE.Color(0x94aaff) },
       uRim:  { value: rimBoost },
     },
     vertexShader: `
@@ -304,13 +304,16 @@ function figureMaterial(baseHex, rimBoost = 1.0) {
       void main(){
         vec3 N = normalize(vN);
         vec3 V = normalize(cameraPosition - vWP);
-        float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.2);
+        float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
         float up = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
-        // the city burns low and warm behind her; the sky is a cool wash above
-        float cityFace = pow(clamp(-N.z * 0.5 + 0.5, 0.0, 1.0), 1.4);
+        // the city burns low and warm behind her; starlight settles on top
+        float cityFace = pow(clamp(-N.z * 0.5 + 0.5, 0.0, 1.0), 1.3);
         vec3 warm = uCity * cityFace;
-        vec3 light = mix(warm, uSky, smoothstep(0.45, 1.0, up) * 0.55);
-        vec3 col = uBase + light * 0.035 + rim * light * 0.42 * uRim;
+        vec3 sky  = uSky * pow(up, 1.5);
+        vec3 col = uBase
+                 + warm * 0.20
+                 + sky  * 0.13
+                 + rim * (warm + sky * 0.7) * 0.85 * uRim;
         gl_FragColor = vec4(col, 1.0);
       }`
   });
@@ -318,129 +321,143 @@ function figureMaterial(baseHex, rimBoost = 1.0) {
 
 export function buildNoura() {
   const g = new THREE.Group();
-  const skin = figureMaterial(0x0a0a10, 0.9);
-  const cloth = figureMaterial(0x07070d, 1.15);
-  const hairMat = figureMaterial(0x030308, 1.35);
+  const skin  = figureMaterial(0x14141d, 0.95);
+  // the dress carries a little light so her black hair reads against it
+  const cloth = figureMaterial(0x191a28, 1.15);
+  const hairMat = figureMaterial(0x040407, 1.75);
 
-  // ---- hips and the fold of her dress on the ground
-  const hips = new THREE.Mesh(new THREE.SphereGeometry(0.245, 28, 20), cloth);
-  hips.scale.set(1.05, 0.66, 1.0);
-  hips.position.set(0, 0.16, 0);
-  g.add(hips);
+  // She stands about 1.62 tall, barefoot on the warm sand.
 
-  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.355, 0.24, 32, 1, true), cloth);
-  skirt.position.set(0, 0.12, 0.03);
-  g.add(skirt);
+  // ---- feet, just showing under the hem
+  for (const sx of [-1, 1]) {
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), skin);
+    foot.scale.set(1.0, 0.62, 1.5);
+    foot.position.set(sx * 0.075, 0.038, -0.015);
+    g.add(foot);
+  }
 
-  // ---- torso, leaning back a little the way you do when you look up
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.225, 0.50, 28, 1), cloth);
-  torso.position.set(0, 0.55, 0.045);
-  torso.rotation.x = -0.16;
-  g.add(torso);
+  // ---- the long dress, from shoulder to ankle, flaring as it falls
+  const dressGeo = new THREE.CylinderGeometry(0.180, 0.272, 1.20, 40, 20, true);
+  {
+    const p = dressGeo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const t = (v.y + 0.60) / 1.20;              // 0 at the hem, 1 at the shoulder
+      // a waist, and soft folds that deepen toward the hem
+      const waist = 1.0 - 0.14 * Math.exp(-Math.pow((t - 0.62) * 4.4, 2.0));
+      const ang = Math.atan2(v.z, v.x);
+      const folds = 1.0 + Math.sin(ang * 7.0) * 0.030 * Math.pow(1 - t, 1.5)
+                        + Math.sin(ang * 13.0 + 1.7) * 0.016 * Math.pow(1 - t, 2.0);
+      v.x *= waist * folds;
+      v.z *= waist * folds;
+      v.y += Math.sin(ang * 7.0) * 0.020 * Math.pow(1 - t, 2.2);   // uneven hem
+      p.setXYZ(i, v.x, v.y, v.z);
+    }
+    dressGeo.computeVertexNormals();
+  }
+  const dress = new THREE.Mesh(dressGeo, cloth);
+  dress.position.set(0, 0.68, 0);
+  g.add(dress);
 
-  const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.195, 26, 18), cloth);
-  shoulders.scale.set(1.42, 0.62, 0.80);
-  shoulders.position.set(0, 0.79, 0.005);
+  // ---- shoulders, neck, head — tilted back to look up
+  const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.175, 28, 20), cloth);
+  shoulders.scale.set(1.30, 0.60, 0.82);
+  shoulders.position.set(0, 1.295, 0);
   g.add(shoulders);
 
-  // ---- neck and head
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.075, 0.10, 16), skin);
-  neck.position.set(0, 0.885, 0.015);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.058, 0.10, 18), skin);
+  neck.position.set(0, 1.365, 0.006);
+  neck.rotation.x = -0.16;
   g.add(neck);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.118, 32, 26), skin);
-  head.scale.set(1.0, 1.08, 1.04);
-  head.position.set(0, 1.00, 0.012);
-  head.rotation.x = -0.30;              // tilted up toward the stars
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.104, 34, 28), skin);
+  head.scale.set(1.0, 1.10, 1.04);
+  head.position.set(0, 1.470, 0.004);
+  head.rotation.x = -0.34;
   g.add(head);
 
-  // ---- her hair: a black fall down her back
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.132, 32, 26), hairMat);
-  cap.scale.set(1.02, 1.06, 1.06);
-  cap.position.set(0, 1.008, 0.004);
-  cap.rotation.x = -0.30;
+  // ---- her hair: black, past the shoulder blades
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.113, 34, 28), hairMat);
+  cap.scale.set(1.04, 1.07, 1.10);
+  cap.position.set(0, 1.474, -0.012);
+  cap.rotation.x = -0.34;
   g.add(cap);
 
-  const fallGeo = new THREE.CylinderGeometry(0.140, 0.250, 1.10, 30, 18, true);
-  {   // sculpt it so it hugs her back and flares at the ends
+  // narrower than her shoulders, or it reads as a cape instead of hair
+  const fallGeo = new THREE.CylinderGeometry(0.118, 0.142, 0.66, 32, 22, true);
+  {
     const p = fallGeo.attributes.position;
     const v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i);
-      const t = (v.y + 0.55) / 1.10;            // 0 at the ends, 1 at the nape
-      const back = THREE.MathUtils.clamp(v.z / 0.18, -1, 1);
-      v.z += (1 - t) * 0.20 - 0.02;             // sweeps backward as it falls
-      v.x *= 1.0 + (1 - t) * 0.16;
-      v.z *= back > 0 ? 0.66 : 1.0;             // flatter against her back
-      // the ends part and curl instead of ending in a straight hem
-      v.y += Math.sin(v.x * 8.0) * 0.045 * Math.pow(1 - t, 1.8)
-           - Math.pow(1 - t, 3.0) * 0.05;
+      const t = (v.y + 0.33) / 0.66;              // 0 at the ends, 1 at the nape
+      const ang = Math.atan2(v.z, v.x);
+      v.z += (1 - t) * 0.030 - 0.006;             // drifts back as it falls
+      if (v.z > 0) v.z *= 0.42;                   // lies flat against her back
+      v.x *= 1.0 + Math.pow(1 - t, 2.0) * 0.10;
+      // the ends part into strands instead of a straight hem
+      v.y += Math.sin(ang * 5.0) * 0.050 * Math.pow(1 - t, 1.6)
+           - Math.pow(1 - t, 3.0) * 0.055;
       p.setXYZ(i, v.x, v.y, v.z);
     }
     fallGeo.computeVertexNormals();
   }
   const fall = new THREE.Mesh(fallGeo, hairMat);
-  fall.position.set(0, 0.52, -0.055);
-  fall.rotation.x = 0.09;
+  fall.position.set(0, 1.100, -0.052);
+  fall.rotation.x = 0.05;
   g.add(fall);
 
-  // a few loose strands catching the city light
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 5 - 0.5) * 1.6;
-    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.003, 0.52 + i * 0.05, 6), hairMat);
-    s.position.set(Math.sin(a) * 0.155, 0.45 - i * 0.02, -0.125 + Math.cos(a) * 0.02);
-    s.rotation.set(0.12, 0, Math.sin(a) * 0.30);
+  for (let i = 0; i < 7; i++) {                    // loose strands
+    const a = (i / 6 - 0.5) * 1.5;
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.003, 0.24 + (i % 3) * 0.06, 6), hairMat);
+    s.position.set(Math.sin(a) * 0.098, 0.930 - (i % 3) * 0.028, -0.082 + Math.cos(a) * 0.016);
+    s.rotation.set(0.05, 0, Math.sin(a) * 0.22);
     g.add(s);
   }
 
-  // ---- knees drawn up in front of her
+  // ---- arms hanging at her sides
   for (const sx of [-1, 1]) {
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.28, 6, 14), cloth);
-    thigh.position.set(sx * 0.13, 0.30, -0.20);
-    thigh.rotation.set(1.15, 0, sx * 0.10);
-    g.add(thigh);
-    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.26, 6, 12), cloth);
-    shin.position.set(sx * 0.165, 0.16, -0.42);
-    shin.rotation.set(0.55, 0, sx * 0.06);
-    g.add(shin);
-  }
-
-  // ---- arms coming round to hold the book in her lap
-  for (const sx of [-1, 1]) {
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.058, 0.24, 6, 12), skin);
-    upper.position.set(sx * 0.235, 0.66, -0.045);
-    upper.rotation.set(0.52, 0, sx * 0.20);
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.046, 0.24, 6, 14), cloth);
+    upper.position.set(sx * 0.205, 1.155, 0.004);
+    upper.rotation.set(0.03, 0, sx * 0.075);
     g.add(upper);
-    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.049, 0.24, 6, 12), skin);
-    fore.position.set(sx * 0.215, 0.475, -0.215);
-    fore.rotation.set(1.30, 0, sx * 0.12);
+    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.040, 0.235, 6, 14), skin);
+    // the right forearm swings a little forward, carrying the book
+    fore.position.set(sx * 0.228, 0.905, sx > 0 ? -0.055 : 0.004);
+    fore.rotation.set(sx > 0 ? -0.26 : 0.02, 0, sx * 0.05);
     g.add(fore);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.042, 16, 12), skin);
+    hand.scale.set(0.85, 1.15, 0.62);
+    hand.position.set(sx * 0.238, 0.775, sx > 0 ? -0.088 : 0.004);
+    g.add(hand);
   }
 
-  // ---- the book, open across her knees, its pages catching the sky
+  // ---- the book, closed, carried against her hip
   const book = new THREE.Group();
-  const pageMat = new THREE.ShaderMaterial({
-    uniforms: {},
-    vertexShader: `varying vec2 vUv; varying vec3 vN;
-      void main(){ vUv = uv; vN = normalize(mat3(modelMatrix) * normal);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `varying vec2 vUv; varying vec3 vN;
-      void main(){
-        float edge = smoothstep(0.0, 0.06, vUv.x) * smoothstep(1.0, 0.94, vUv.x);
-        vec3 col = mix(vec3(0.28, 0.26, 0.24), vec3(0.62, 0.58, 0.52), edge);
-        col *= 0.55 + 0.45 * clamp(vN.y, 0.0, 1.0);
-        gl_FragColor = vec4(col, 1.0); }`
-  });
-  for (const sx of [-1, 1]) {
-    const page = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.012, 0.21), pageMat);
-    page.position.set(sx * 0.079, 0, 0);
-    page.rotation.z = sx * -0.13;
-    book.add(page);
-  }
-  const spine = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.020, 0.215), cloth);
-  book.add(spine);
-  book.position.set(0, 0.395, -0.30);
-  book.rotation.set(-0.62, 0, 0);
+  const coverMat = figureMaterial(0x0d0b12, 1.35);
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.225, 0.040), coverMat);
+  book.add(cover);
+  // the page block, catching what light there is
+  const pages = new THREE.Mesh(
+    new THREE.BoxGeometry(0.140, 0.205, 0.030),
+    new THREE.ShaderMaterial({
+      uniforms: {},
+      vertexShader: `varying vec3 vN; varying vec2 vUv;
+        void main(){ vN = normalize(mat3(modelMatrix) * normal); vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `varying vec3 vN; varying vec2 vUv;
+        void main(){
+          float lines = 0.82 + 0.18 * sin(vUv.y * 190.0);   // the stacked page edges
+          vec3 col = vec3(0.40, 0.37, 0.33) * lines;
+          col *= 0.45 + 0.55 * clamp(vN.y * 0.5 + 0.5, 0.0, 1.0);
+          gl_FragColor = vec4(col, 1.0); }`
+    })
+  );
+  pages.position.z = 0.006;
+  book.add(pages);
+  book.position.set(0.262, 0.745, -0.092);
+  book.rotation.set(0.20, 0.16, 0.10);
   g.add(book);
   g.userData.book = book;
 

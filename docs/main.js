@@ -1090,7 +1090,7 @@ $('siStart').addEventListener('click', () => {
     $('finale').classList.remove('on');
     $('prog').classList.remove('on');
     chapters.forEach(c => c.classList.remove('on'));
-    renderer.toneMappingExposure = 1.14;
+    renderer.toneMappingExposure = 1.42;
     finalPass.uniforms.uWarm.value = 0.08;
     finalPass.uniforms.uCA.value = 0.0009;
     // the flash is now driven frame by frame by the wormhole itself

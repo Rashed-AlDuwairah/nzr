@@ -5,6 +5,10 @@
 //  clock and her coordinates. Nothing is placed by hand.
 // ============================================================
 import * as Astro from './vendor/astronomy.js';
+import { lookAngles } from './iss.js';
+
+// the one target whose position is not computed but asked for, live
+export const LIVE = { iss: null };
 
 // her star: HD 219134, Cassiopeia, 21.35 light-years
 Astro.DefineStar(Astro.Body.Star1, 23.2211, 57.1684, 21.35 / 3.26156);
@@ -83,6 +87,15 @@ export const TARGETS = [
     line: 'مجرّتان تسيران نحو بعضهما منذ ملايين السنين لتصيرا واحدة…<br>مثلنا تماماً، إلا أننا سبقناهما.',
   },
   {
+    id: 'iss', body: null, kind: 'sat', live: true,
+    ar: 'محطة الفضاء الدولية', lat: 'ISS · Zarya', mag: -3, hue: 0xe8f2ff,
+    facts: 'تدور فوقكِ على ارتفاع <b class="d"></b> كيلومتر، بسرعة <b>٧٫٦</b> كيلومتر في الثانية.<br>'
+         + 'تكمل دورة حول الأرض كل <b>٩٣</b> دقيقة، وفيها بشرٌ يعيشون الآن.',
+    line: 'هذه ليست نجمة… هذه بيتٌ صغير فيه ناسٌ يدورون حول الأرض،<br>'
+        + 'ويرون شروق الشمس ستّ عشرة مرة في اليوم.<br><br>'
+        + 'وأنا لو دُرتُ حول الأرض ستّ عشرة مرة في اليوم، لبحثتُ عنكِ في كل دورة.',
+  },
+  {
     id: 'perseids', body: Astro.Body.Star5, kind: 'radiant', ar: 'مَطَرُ ليلتِكِ', lat: 'Perseid Radiant',
     mag: 4, hue: 0xffc98a,
     facts: 'من هذه البقعة تنطلق شهب البرشاويات كل عام في ليلة ميلادكِ.<br>'
@@ -93,6 +106,12 @@ export const TARGETS = [
 
 // altitude, azimuth and distance for a target, right now, from here
 export function locate(t, observer, time) {
+  if (t.kind === 'sat') {
+    const p = LIVE.iss;
+    if (!p) return { alt: -90, az: 0, distAu: 0, km: 0, stale: true };
+    const a = lookAngles(observer.latitude, observer.longitude, p.lat, p.lon, p.alt);
+    return { alt: a.alt, az: a.az, distAu: 0, km: a.range, hKm: p.alt };
+  }
   const eq = Astro.Equator(t.body, time, observer, true, true);
   const hor = Astro.Horizon(time, observer, eq.ra, eq.dec, 'normal');
   return { alt: hor.altitude, az: hor.azimuth, distAu: eq.dist };

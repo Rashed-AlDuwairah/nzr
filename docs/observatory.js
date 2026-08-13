@@ -1,86 +1,47 @@
 // ============================================================
-//  مِرصَد نورة — her real star, live, above her, tonight
+//  مِرصَد نورة — a real instrument pointed at a real sky
 //
-//  Everything here is computed, not staged: sidereal time from her
-//  clock, her horizon from her coordinates, and the true altitude and
-//  azimuth of HD 219134 — a star 21.35 light-years away in Cassiopeia,
-//  whose light left home in the spring of 2005.
+//  Ten objects, each located from her clock and her coordinates by
+//  a full ephemeris: her birth-year star, the Moon in its true phase,
+//  four planets, three fixed stars and a galaxy, and the radiant that
+//  rains on her birthday. She stands under it while she looks.
 // ============================================================
 import * as THREE from 'three';
+import { buildNoura, buildRiyadh } from './world.js';
+import { TARGETS, locate, nextRise, moonInfo, Astro } from './targets.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const $ = id => document.getElementById(id);
-let __dbg;
-
-// ---------------------------------------------------------------- sky maths
-// Julian date from a JS Date
-function julian(date) { return date.getTime() / 86400000 + 2440587.5; }
-
-// Greenwich mean sidereal time, in degrees
-function gmst(date) {
-  const jd = julian(date);
-  const T = (jd - 2451545.0) / 36525;
-  let t = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
-        + 0.000387933 * T * T - T * T * T / 38710000;
-  return ((t % 360) + 360) % 360;
-}
-
-// Precess J2000 coordinates to the date, so the aim stays true
-function precess(raH, decDeg, date) {
-  const T = (julian(date) - 2451545.0) / 36525;
-  const z  = (0.6406161 * T + 0.0000839 * T * T) * D2R;
-  const th = (0.5567530 * T - 0.0001185 * T * T) * D2R;
-  const ze = (0.6406161 * T + 0.0000301 * T * T) * D2R;
-  const ra = raH * 15 * D2R, dec = decDeg * D2R;
-  const A = Math.cos(dec) * Math.sin(ra + ze);
-  const B = Math.cos(th) * Math.cos(dec) * Math.cos(ra + ze) - Math.sin(th) * Math.sin(dec);
-  const C = Math.sin(th) * Math.cos(dec) * Math.cos(ra + ze) + Math.cos(th) * Math.sin(dec);
-  return [ (Math.atan2(A, B) + z) * R2D / 15, Math.asin(C) * R2D ];
-}
-
-// Right ascension / declination -> altitude / azimuth for a place and time
-function altAz(raH, decDeg, latDeg, lonDeg, date) {
-  const lst = gmst(date) + lonDeg;                 // local sidereal time, degrees
-  const ha = ((lst - raH * 15) % 360 + 540) % 360 - 180;
-  const H = ha * D2R, dec = decDeg * D2R, lat = latDeg * D2R;
-  const sinAlt = Math.sin(dec) * Math.sin(lat) + Math.cos(dec) * Math.cos(lat) * Math.cos(H);
-  const alt = Math.asin(THREE.MathUtils.clamp(sinAlt, -1, 1));
-  const az = Math.atan2(-Math.sin(H) * Math.cos(dec),
-                        Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.sin(lat) * Math.cos(H));
-  return [alt * R2D, ((az * R2D) % 360 + 360) % 360];   // az measured from north, eastward
-}
-
-// When does it next clear the horizon from here?
-function nextRise(raH, decDeg, lat, lon, from) {
-  for (let m = 0; m < 60 * 26; m += 4) {
-    const t = new Date(from.getTime() + m * 60000);
-    if (altAz(raH, decDeg, lat, lon, t)[0] > 6) return t;
-  }
-  return null;
-}
+const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+const arNum = n => String(n).split('').map(c => (c >= '0' && c <= '9') ? AR[+c] : c).join('');
 
 function dirFromAzAlt(azDeg, altDeg, r = 1) {
   const az = azDeg * D2R, alt = altDeg * D2R;
   return new THREE.Vector3(
-    Math.sin(az) * Math.cos(alt) * r,
-    Math.sin(alt) * r,
-    -Math.cos(az) * Math.cos(alt) * r);
+    Math.sin(az) * Math.cos(alt) * r, Math.sin(alt) * r, -Math.cos(az) * Math.cos(alt) * r);
 }
-
-const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-const arNum = n => String(n).split('').map(c => (c >= '0' && c <= '9') ? AR[+c] : c).join('');
+function raDecToVec(raH, decDeg, r) {
+  const ra = raH * 15 * D2R, dec = decDeg * D2R;
+  return new THREE.Vector3(
+    Math.cos(dec) * Math.sin(ra) * r, Math.sin(dec) * r, Math.cos(dec) * Math.cos(ra) * r);
+}
+function gmst(date) {
+  const jd = date.getTime() / 86400000 + 2440587.5;
+  const T = (jd - 2451545.0) / 36525;
+  const t = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
+          + 0.000387933 * T * T - T * T * T / 38710000;
+  return ((t % 360) + 360) % 360;
+}
 
 // ---------------------------------------------------------------- state
 const S = {
-  lat: 24.7136, lon: 46.6753, placed: false,   // Riyadh until she says otherwise
-  heading: null,                                // true compass heading, if the device gives one
-  yaw: 0, pitch: 0.5, yawV: 0, pitchV: 0,       // fallback look, and the smoothed device look
-  useMotion: false,
-  locked: false, lockT: 0,
-  star: null, data: null,
-  ready: false,
+  lat: 24.7136, lon: 46.6753, placed: false,
+  heading: null, useMotion: false,
+  yaw: 0.16, pitch: 0.22, yawV: 0, pitchV: 0,
+  idx: 0, found: new Set(), locked: false, lockHold: 0,
+  ready: false, started: false,
+  obs: null,
 };
-
 window.__OBS = S;
 
 // ---------------------------------------------------------------- three
@@ -89,11 +50,12 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.25;
+renderer.toneMappingExposure = 1.35;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 0.1, 4000);
+camera.position.set(0, 1.62, 0);   // her eye height, so the ground reads as ground
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -101,28 +63,24 @@ addEventListener('resize', () => {
 });
 
 const R = 900;
-const skyGroup = new THREE.Group();   // holds everything fixed to the celestial sphere
+const skyGroup = new THREE.Group();     // the celestial sphere, turned to her horizon
 scene.add(skyGroup);
+const localGroup = new THREE.Group();   // things fixed to her ground
+scene.add(localGroup);
 
-// ---- the ground and the horizon glow
+// ---- night, airglow, and the ground she stands on
 {
-  const bg = new THREE.Mesh(
-    new THREE.SphereGeometry(R * 2.4, 40, 28),
+  const bg = new THREE.Mesh(new THREE.SphereGeometry(R * 2.4, 40, 28),
     new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false,
-      uniforms: { uTime: { value: 0 } },
       vertexShader: `varying vec3 vD; void main(){ vD = position;
         gl_Position = (projectionMatrix * modelViewMatrix * vec4(position,1.0)).xyww; }`,
-      fragmentShader: `
-        uniform float uTime; varying vec3 vD;
-        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5); }
+      fragmentShader: `varying vec3 vD;
         void main(){
           vec3 d = normalize(vD);
-          vec3 col = vec3(0.014, 0.018, 0.034) * (1.0 - abs(d.y) * 0.35);
-          float hz = exp(-abs(d.y) * 16.0);
-          col += hz * vec3(0.075, 0.048, 0.028);
-          float g = smoothstep(0.02, -0.03, d.y);
-          col = mix(col, vec3(0.012, 0.011, 0.012), g);
+          vec3 col = vec3(0.016, 0.020, 0.038) * (1.0 - abs(d.y) * 0.3);
+          col += exp(-abs(d.y) * 14.0) * vec3(0.10, 0.062, 0.032);
+          col = mix(col, vec3(0.013, 0.012, 0.013), smoothstep(0.02, -0.03, d.y));
           gl_FragColor = vec4(col, 1.0);
         }`
     }));
@@ -130,32 +88,37 @@ scene.add(skyGroup);
   scene.add(bg);
 }
 
-// ---- the horizon ring, with the four directions marked in the world
-const horizon = new THREE.Group();
-scene.add(horizon);
+// her city on the horizon, and Noura standing in the foreground
 {
-  const pts = [];
-  for (let a = 0; a <= 360; a += 2) {
-    const v = dirFromAzAlt(a, 0, R * 0.9);
-    pts.push(v.x, v.y, v.z);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3));
-  horizon.add(new THREE.Line(geo, new THREE.LineBasicMaterial({
-    color: 0xffc98a, transparent: true, opacity: 0.16 })));
+  const city = buildRiyadh();
+  city.scale.setScalar(1.0);
+  localGroup.add(city);
+  const her = buildNoura();
+  // she stands a few paces ahead, her head about level with the eye,
+  // so she reads as a silhouette under the sky and never covers it
+  her.position.set(1.15, 0, -4.4);
+  her.scale.setScalar(1.0);
+  her.rotation.y = -0.30;
+  // she is closer to the eye here than in the journey, so she is lit a
+  // little more generously — a body, not a shadow
+  her.traverse(o => {
+    const u = o.material && o.material.uniforms;
+    if (!u || !u.uBase) return;
+    u.uBase.value.addScalar(0.055);
+    u.uCity.value.multiplyScalar(1.3);
+    u.uRim.value *= 1.7;
+  });
+  localGroup.add(her);
 }
 
-// ---------------------------------------------------------------- the catalogue
-let starPoints, starMat, lineSeg, herStar, herHalo, herRing;
+// ---------------------------------------------------------------- catalogue
+let starMat, lineSeg;
+const marks = [];   // one visual per target
 
 function buildSky(d) {
-  // stars, placed on the celestial sphere; the whole sphere is then turned
-  // to match her horizon every frame
   const n = d.stars.length;
-  const pos = new Float32Array(n * 3);
-  const col = new Float32Array(n * 3);
-  const size = new Float32Array(n);
-  const ph = new Float32Array(n);
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const size = new Float32Array(n), ph = new Float32Array(n);
   const c = new THREE.Color();
   for (let i = 0; i < n; i++) {
     const [ra, dec, mag, ci] = d.stars[i];
@@ -168,7 +131,7 @@ function buildSky(d) {
     else if (ci < 1.3) c.setRGB(1.00, 0.86, 0.63);
     else               c.setRGB(1.00, 0.77, 0.53);
     col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
-    size[i] = Math.max(1.0, 6.2 - mag) * 0.72;
+    size[i] = Math.max(1.0, 6.2 - mag) * 0.74;
     ph[i] = Math.random() * 6.28;
   }
   const geo = new THREE.BufferGeometry();
@@ -179,29 +142,21 @@ function buildSky(d) {
   starMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     uniforms: { uTime: { value: 0 } },
-    vertexShader: `
-      attribute vec3 aColor; attribute float aSize, aPhase;
+    vertexShader: `attribute vec3 aColor; attribute float aSize, aPhase;
       uniform float uTime; varying vec3 vC; varying float vT;
-      void main(){
-        vC = aColor;
-        vT = 0.76 + 0.24 * sin(uTime * (1.1 + aPhase) + aPhase * 19.0);
+      void main(){ vC = aColor; vT = 0.76 + 0.24 * sin(uTime * (1.1 + aPhase) + aPhase * 19.0);
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         gl_PointSize = aSize * vT * 3.4;
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
-      varying vec3 vC; varying float vT;
-      void main(){
-        float r = length(gl_PointCoord - 0.5);
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `varying vec3 vC; varying float vT;
+      void main(){ float r = length(gl_PointCoord - 0.5);
         float a = smoothstep(0.5, 0.06, r) + smoothstep(0.14, 0.0, r) * 0.85;
-        gl_FragColor = vec4(vC * vT * 1.2, a * 0.95);
-      }`
+        gl_FragColor = vec4(vC * vT * 1.2, a * 0.95); }`
   });
-  starPoints = new THREE.Points(geo, starMat);
-  starPoints.frustumCulled = false;
-  skyGroup.add(starPoints);
+  const pts = new THREE.Points(geo, starMat);
+  pts.frustumCulled = false;
+  skyGroup.add(pts);
 
-  // constellation lines
   const lp = [];
   for (const seg of d.lines)
     for (let i = 0; i < seg.length - 1; i++) {
@@ -212,56 +167,20 @@ function buildSky(d) {
   const lgeo = new THREE.BufferGeometry();
   lgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lp), 3));
   lineSeg = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({
-    color: 0x8fa8dd, transparent: true, opacity: 0.15,
+    color: 0x8fa8dd, transparent: true, opacity: 0.16,
     blending: THREE.AdditiveBlending, depthWrite: false }));
   lineSeg.frustumCulled = false;
   skyGroup.add(lineSeg);
-
-  // ---- her star: a disc, a halo, and a ring that closes when she finds it
-  const tex = discTexture();
-  herHalo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: tex, transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, color: 0xffd08a }));
-  herHalo.scale.setScalar(46);
-  skyGroup.add(herHalo);
-
-  herStar = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: tex, transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, color: 0xfff0d6 }));
-  herStar.scale.setScalar(15);
-  skyGroup.add(herStar);
-
-  const rgeo = new THREE.RingGeometry(0.052, 0.056, 72);
-  herRing = new THREE.Mesh(rgeo, new THREE.MeshBasicMaterial({
-    color: 0xffb765, transparent: true, opacity: 0, side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending, depthWrite: false }));
-  skyGroup.add(herRing);
-
-  const [pra, pdec] = precess(d.star.ra, d.star.dec, new Date());
-  S.star = { ...d.star, pra, pdec };
-  const v = raDecToVec(pra, pdec, R * 0.98);
-  herHalo.position.copy(v); herStar.position.copy(v);
-  herRing.position.copy(v.clone().multiplyScalar(0.99));
-  herRing.scale.setScalar(R * 0.98);
 }
 
-function raDecToVec(raH, decDeg, r) {
-  // equatorial frame: +Y toward the north celestial pole, RA measured about it
-  const ra = raH * 15 * D2R, dec = decDeg * D2R;
-  return new THREE.Vector3(
-    Math.cos(dec) * Math.sin(ra) * r,
-    Math.sin(dec) * r,
-    Math.cos(dec) * Math.cos(ra) * r);
-}
-
-function discTexture() {
+function discTexture(inner = 'rgba(255,255,255,1)') {
   const s = 128, cv = document.createElement('canvas');
   cv.width = cv.height = s;
   const g = cv.getContext('2d');
   const grd = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
-  grd.addColorStop(0, 'rgba(255,255,255,1)');
-  grd.addColorStop(0.22, 'rgba(255,240,214,0.85)');
-  grd.addColorStop(0.55, 'rgba(255,200,130,0.22)');
+  grd.addColorStop(0, inner);
+  grd.addColorStop(0.22, 'rgba(255,240,214,0.82)');
+  grd.addColorStop(0.55, 'rgba(255,200,130,0.20)');
   grd.addColorStop(1, 'rgba(255,180,100,0)');
   g.fillStyle = grd; g.fillRect(0, 0, s, s);
   const t = new THREE.CanvasTexture(cv);
@@ -269,278 +188,387 @@ function discTexture() {
   return t;
 }
 
-// Turn the celestial sphere so it sits correctly over her horizon:
-// spin by the local sidereal time, then tip by her latitude.
-function orientSky(date) {
-  const lst = (gmst(date) + S.lon) * D2R;
-  const q = new THREE.Quaternion();
-  // tip: the pole rises to her latitude above the northern horizon
-  q.setFromAxisAngle(new THREE.Vector3(1, 0, 0), (90 - S.lat) * D2R);
-  const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -lst);
-  skyGroup.quaternion.copy(q).multiply(spin);
+// each target gets a halo, a core and a ring that closes as she nears it
+function buildMarks() {
+  const tex = discTexture();
+  for (const t of TARGETS) {
+    const g = new THREE.Group();
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, color: t.hue, opacity: 0 }));
+    halo.scale.setScalar(46);
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, color: 0xffffff, opacity: 0 }));
+    core.scale.setScalar(14);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.054, 72),
+      new THREE.MeshBasicMaterial({ color: 0xffb765, transparent: true, opacity: 0,
+        side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ring.scale.setScalar(R * 0.96);
+    g.add(halo, core, ring);
+    localGroup.add(g);          // positioned in horizon coordinates each frame
+    marks.push({ t, g, halo, core, ring });
+  }
+}
+
+// the Moon, drawn in its true phase
+let moonMesh;
+function buildMoon() {
+  moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(46, 46),
+    new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      uniforms: { uPhase: { value: 1.6 } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv * 2.0 - 1.0;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `uniform float uPhase; varying vec2 vUv;
+        float h(vec3 p){ return fract(sin(dot(p, vec3(12.9,78.2,45.1))) * 43758.5); }
+        float n(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+          return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),
+                     mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }
+        void main(){
+          float r2 = dot(vUv, vUv);
+          if (r2 > 1.0) discard;
+          vec3 N = vec3(vUv.x, vUv.y, sqrt(1.0 - r2));
+          vec3 L = normalize(vec3(-sin(uPhase), 0.10, -cos(uPhase)));
+          float lit = clamp(dot(N, L) * 1.7 + 0.04, 0.0, 1.0);
+          float maria = n(N * 4.5 + 3.0) * 0.6 + n(N * 11.0) * 0.4;
+          vec3 surf = mix(vec3(0.88,0.87,0.83), vec3(0.55,0.55,0.54), smoothstep(0.45,0.72,maria));
+          gl_FragColor = vec4(surf * (lit * 1.05 + 0.012), smoothstep(1.0, 0.88, r2));
+        }`
+    }));
+  localGroup.add(moonMesh);
 }
 
 // ---------------------------------------------------------------- compass band
 function buildBand() {
   const inner = $('bandInner');
   inner.innerHTML = '';
-  const PPD = 5.2;                       // pixels per degree of heading
-  const names = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
-  // three copies so it can scroll seamlessly
-  for (let rep = -1; rep <= 1; rep++) {
+  const PPD = 5.2;
+  const names = { 0:'N', 45:'NE', 90:'E', 135:'SE', 180:'S', 225:'SW', 270:'W', 315:'NW' };
+  for (let rep = -1; rep <= 1; rep++)
     for (let a = 0; a < 360; a += 5) {
-      const x = (a + rep * 360) * PPD;
-      const maj = a % 45 === 0;
+      const x = (a + rep * 360) * PPD, maj = a % 45 === 0;
       const tk = document.createElement('i');
       tk.className = 'tk' + (maj ? ' maj' : '');
-      tk.style.left = x + 'px';
-      tk.style.height = maj ? '13px' : '7px';
+      tk.style.left = x + 'px'; tk.style.height = maj ? '13px' : '7px';
       inner.appendChild(tk);
       if (maj) {
         const l = document.createElement('span');
-        l.className = 'tkl';
-        l.style.left = x + 'px';
-        l.textContent = names[a];
+        l.className = 'tkl'; l.style.left = x + 'px'; l.textContent = names[a];
         inner.appendChild(l);
       }
     }
-  }
   inner.dataset.ppd = PPD;
 }
-function updateBand(headingDeg) {
+function updateBand(h) {
   const inner = $('bandInner');
-  const PPD = +inner.dataset.ppd;
-  const x = innerWidth / 2 - headingDeg * PPD;
-  inner.style.transform = `translateX(${x}px)`;
+  inner.style.transform = `translateX(${innerWidth / 2 - h * (+inner.dataset.ppd)}px)`;
 }
 
 // ---------------------------------------------------------------- device motion
-function screenAngleRad() {
-  const a = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-  return (a || 0) * D2R;
-}
-
 function attachMotion() {
-  const q = new THREE.Quaternion();
+  const q = new THREE.Quaternion(), e = new THREE.Euler();
   const zee = new THREE.Vector3(0, 0, 1);
-  const e = new THREE.Euler();
-  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));   // -PI/2 about X
-
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
   const handler = ev => {
     if (ev.alpha == null) return;
     S.useMotion = true;
-    // iOS gives a true-north heading; Android usually does not
     if (typeof ev.webkitCompassHeading === 'number' && !isNaN(ev.webkitCompassHeading))
       S.heading = ev.webkitCompassHeading;
-
-    const alpha = ev.alpha * D2R, beta = ev.beta * D2R, gamma = ev.gamma * D2R;
-    e.set(beta, alpha, -gamma, 'YXZ');
+    else if (ev.absolute === true) S.heading = (360 - ev.alpha) % 360;
+    const scr = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * D2R;
+    e.set(ev.beta * D2R, ev.alpha * D2R, -ev.gamma * D2R, 'YXZ');
     q.setFromEuler(e);
-    q.multiply(q1);                                    // camera looks out the back
-    q.multiply(new THREE.Quaternion().setFromAxisAngle(zee, -screenAngleRad()));
+    q.multiply(q1);
+    q.multiply(new THREE.Quaternion().setFromAxisAngle(zee, -scr));
     camera.quaternion.copy(q);
-
-    if (S.heading == null) {
-      // absolute events on Android carry true north in alpha
-      if (ev.absolute === true) S.heading = (360 - ev.alpha) % 360;
-    }
   };
-
   const add = () => {
     addEventListener('deviceorientationabsolute', handler, true);
     addEventListener('deviceorientation', handler, true);
   };
-  if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
+  if (typeof DeviceOrientationEvent !== 'undefined'
+      && typeof DeviceOrientationEvent.requestPermission === 'function')
     return DeviceOrientationEvent.requestPermission()
-      .then(r => { if (r === 'granted') add(); })
-      .catch(() => {});
-  }
+      .then(r => { if (r === 'granted') add(); }).catch(() => {});
   add();
   return Promise.resolve();
 }
 
-// desktop / no-compass fallback: drag to look
+// drag to look, when the device will not tell us where it points
 {
-  let down = false, px = 0, py = 0;
-  addEventListener('pointerdown', e => { down = true; px = e.clientX; py = e.clientY; });
-  addEventListener('pointerup', () => { down = false; });
+  let down = false, px = 0, py = 0, moved = 0;
+  addEventListener('pointerdown', e => { down = true; px = e.clientX; py = e.clientY; moved = 0; });
   addEventListener('pointermove', e => {
     if (!down || S.useMotion) return;
+    moved += Math.abs(e.clientX - px) + Math.abs(e.clientY - py);
     S.yawV = -(e.clientX - px) * 0.0035;
     S.pitchV = (e.clientY - py) * 0.0035;
     px = e.clientX; py = e.clientY;
   });
+  addEventListener('pointerup', () => { down = false; });
 }
 
-// ---------------------------------------------------------------- the journey counter
-function tripText(now) {
-  const dep = new Date(S.data.star.departedISO);
-  let ms = now - dep;
-  const yr = 365.25636 * 86400000;
-  const years = Math.floor(ms / yr); ms -= years * yr;
-  const days = Math.floor(ms / 86400000); ms -= days * 86400000;
-  const hrs = Math.floor(ms / 3600000); ms -= hrs * 3600000;
-  const min = Math.floor(ms / 60000); ms -= min * 60000;
-  const sec = Math.floor(ms / 1000);
-  const t = ms % 1000;
-  return `${arNum(years)} سنة · ${arNum(days)} يوم · ${arNum(String(hrs).padStart(2,'0'))}:${arNum(String(min).padStart(2,'0'))}:${arNum(String(sec).padStart(2,'0'))}.${arNum(String(Math.floor(t/100)))}`;
+// ---------------------------------------------------------------- the log
+function buildLog() {
+  const host = $('logList');
+  host.innerHTML = '';
+  TARGETS.forEach((t, i) => {
+    const row = document.createElement('button');
+    row.className = 'logRow';
+    row.dataset.i = i;
+    row.innerHTML = `<span class="lg-n">${t.ar}</span><span class="lg-a"></span>`;
+    row.addEventListener('click', () => { selectTarget(i); toggleLog(false); });
+    host.appendChild(row);
+  });
+}
+function toggleLog(on) {
+  const el = $('log');
+  const show = on === undefined ? !el.classList.contains('on') : on;
+  el.classList.toggle('on', show);
+}
+function selectTarget(i) {
+  S.idx = i;
+  S.locked = false; S.lockHold = 0;
+  document.body.classList.remove('locked');
+  $('found').classList.remove('on');
+  refreshHud();
+}
+
+function refreshHud() {
+  const t = TARGETS[S.idx];
+  $('obV').textContent = t.ar;
+  $('obK').textContent = t.lat;
+  const track = $('track');
+  track.innerHTML = '';
+  TARGETS.forEach((tt, i) => {
+    const b = document.createElement('b');
+    if (S.found.has(tt.id)) b.className = 'lit';
+    else if (i === S.idx) b.className = 'next';
+    track.appendChild(b);
+  });
+  $('foundCount').textContent = `${arNum(S.found.size)} / ${arNum(TARGETS.length)}`;
 }
 
 // ---------------------------------------------------------------- start
 async function begin() {
-  $('openHint').textContent = 'Asking…';
-  // her place, if she will give it
+  if (S.started) return;
+  S.started = true;
+  $('openHint').textContent = '…';
   await new Promise(res => {
     if (!navigator.geolocation) return res();
-    const done = () => res();
-    const to = setTimeout(done, 9000);
+    const to = setTimeout(res, 9000);
     navigator.geolocation.getCurrentPosition(p => {
       clearTimeout(to);
       S.lat = p.coords.latitude; S.lon = p.coords.longitude; S.placed = true;
       res();
     }, () => { clearTimeout(to); res(); }, { enableHighAccuracy: false, timeout: 8000 });
   });
+  S.obs = new Astro.Observer(S.lat, S.lon, 600);
   await attachMotion();
 
   $('open').classList.add('gone');
   $('hud').classList.add('on');
-  setTimeout(() => { $('trip').classList.add('on'); }, 1600);
+  refreshHud();
 
-  if (!S.placed) {
-    $('note').textContent = 'لم يصلني موقعك، فحسبتُ سماء الرياض. لو سمحتِ بالموقع سترين سماءكِ أنتِ بالضبط.';
+  const note = [];
+  if (!S.placed) note.push('لم يصلني موقعكِ، فحسبتُ سماء الرياض. لو سمحتِ بالموقع سترين سماءكِ أنتِ بالضبط.');
+  if (!S.useMotion) note.push('جوالكِ لا يعطيني اتجاهه، فاسحبي بإصبعكِ لتلفّي في السماء.');
+  if (note.length) {
+    $('note').textContent = note.join(' ');
     $('note').classList.add('on');
-    setTimeout(() => $('note').classList.remove('on'), 12000);
-  }
-  if (!S.useMotion) {
-    $('note').textContent = 'جوالك لا يعطيني اتجاهه، فاسحبي بإصبعك لتلفّي في السماء.';
-    $('note').classList.add('on');
-    setTimeout(() => $('note').classList.remove('on'), 12000);
+    setTimeout(() => $('note').classList.remove('on'), 13000);
   }
 }
-$('beginBtn').addEventListener('click', begin, { once: true });
+$('beginBtn').addEventListener('click', begin);
+$('logBtn').addEventListener('click', () => toggleLog());
+$('logClose').addEventListener('click', () => toggleLog(false));
+$('nextBtn').addEventListener('click', () => {
+  // move to the next thing still unfound
+  for (let k = 1; k <= TARGETS.length; k++) {
+    const i = (S.idx + k) % TARGETS.length;
+    if (!S.found.has(TARGETS[i].id)) { selectTarget(i); return; }
+  }
+  selectTarget((S.idx + 1) % TARGETS.length);
+});
+
+// ---------------------------------------------------------------- journey counter
+const DEPART = new Date('2005-04-07T05:02:05Z');
+function tripText(now) {
+  let ms = now - DEPART;
+  const yr = 365.25636 * 86400000;
+  const y = Math.floor(ms / yr); ms -= y * yr;
+  const d = Math.floor(ms / 86400000); ms -= d * 86400000;
+  const h = Math.floor(ms / 3600000); ms -= h * 3600000;
+  const mi = Math.floor(ms / 60000); ms -= mi * 60000;
+  const se = Math.floor(ms / 1000);
+  const p = n => arNum(String(n).padStart(2, '0'));
+  return `${arNum(y)} سنة · ${arNum(d)} يوم · ${p(h)}:${p(mi)}:${p(se)}.${arNum(Math.floor((ms % 1000) / 100))}`;
+}
 
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock();
-let lastRise = null, riseCheck = 0;
+let riseCache = { at: 0, when: null, id: null };
 
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
   const time = clock.elapsedTime;
   const now = new Date();
-
-  if (!S.ready) { renderer.render(scene, camera); return; }
+  if (!S.ready || !S.obs) { renderer.render(scene, camera); return; }
 
   starMat.uniforms.uTime.value = time;
-  orientSky(now);
 
-  // where her star stands right now
-  const [alt, az] = altAz(S.star.pra, S.star.pdec, S.lat, S.lon, now);
+  // turn the celestial sphere onto her horizon
+  const lst = (gmst(now) + S.lon) * D2R;
+  skyGroup.quaternion
+    .setFromAxisAngle(new THREE.Vector3(1, 0, 0), (90 - S.lat) * D2R)
+    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -lst));
 
   // ---- camera
   if (!S.useMotion) {
     S.yaw += S.yawV; S.pitch += S.pitchV;
     S.yawV *= Math.exp(-dt * 4.5); S.pitchV *= Math.exp(-dt * 4.5);
-    S.pitch = THREE.MathUtils.clamp(S.pitch, -0.5, 1.45);
-    const d = new THREE.Vector3(
-      Math.sin(S.yaw) * Math.cos(S.pitch), Math.sin(S.pitch), -Math.cos(S.yaw) * Math.cos(S.pitch));
-    camera.lookAt(d);
+    S.pitch = THREE.MathUtils.clamp(S.pitch, -0.42, 1.45);
+    camera.lookAt(new THREE.Vector3(
+      Math.sin(S.yaw) * Math.cos(S.pitch), Math.sin(S.pitch), -Math.cos(S.yaw) * Math.cos(S.pitch))
+      .add(camera.position));
   }
-
-  // where the camera is actually pointing, in her sky
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   const lookAlt = Math.asin(THREE.MathUtils.clamp(fwd.y, -1, 1)) * R2D;
-  let lookAz = Math.atan2(fwd.x, -fwd.z) * R2D;
-  lookAz = ((lookAz % 360) + 360) % 360;
-  // if the device gave us true north, trust it over the sky's own frame
-  const headingShown = S.heading != null ? S.heading : lookAz;
-  updateBand(headingShown);
+  let lookAz = ((Math.atan2(fwd.x, -fwd.z) * R2D) % 360 + 360) % 360;
+  updateBand(S.heading != null ? S.heading : lookAz);
 
-  // ---- how far off is she?
-  const target = dirFromAzAlt(az, alt);
+  // ---- place every target where it truly is, and light the chosen one
+  const active = TARGETS[S.idx];
+  let sep = 999, aAlt = 0, aAz = 0, aDist = 0;
   const look = dirFromAzAlt(lookAz, lookAlt);
-  const sep = Math.acos(THREE.MathUtils.clamp(target.dot(look), -1, 1)) * R2D;
 
-  // ---- her star, breathing, and its ring closing as she nears it
-  const near = THREE.MathUtils.clamp(1 - sep / 60, 0, 1);
-  herHalo.scale.setScalar(40 + Math.pow(near, 2) * 46 + Math.sin(time * 1.7) * 5);
-  herHalo.material.opacity = 0.42 + near * 0.5;
-  herStar.scale.setScalar(13 + Math.pow(near, 2) * 10 + Math.sin(time * 2.3) * 1.6);
-  herRing.material.opacity = Math.pow(near, 2.2) * 0.7;
-  herRing.lookAt(0, 0, 0);
+  for (const m of marks) {
+    const p = locate(m.t, S.obs, now);
+    const dir = dirFromAzAlt(p.az, p.alt);
+    m.g.position.copy(dir).multiplyScalar(R * 0.96);
+    m.ring.position.copy(dir).multiplyScalar(R * 0.95);
+    m.ring.lookAt(0, 0, 0);
+    const isActive = m.t === active;
+    if (isActive) { aAlt = p.alt; aAz = p.az; aDist = p.distAu; sep = Math.acos(
+      THREE.MathUtils.clamp(dir.dot(look), -1, 1)) * R2D; }
+    const near = isActive ? THREE.MathUtils.clamp(1 - sep / 60, 0, 1) : 0;
+    const seen = S.found.has(m.t.id);
+    m.halo.material.opacity = isActive ? 0.40 + near * 0.55 : (seen ? 0.16 : 0.0);
+    m.core.material.opacity = isActive ? 0.85 : (seen ? 0.30 : 0.0);
+    m.halo.scale.setScalar((isActive ? 40 + Math.pow(near, 2) * 44 : 26) + Math.sin(time * 1.7) * 4);
+    m.core.scale.setScalar(isActive ? 13 + Math.pow(near, 2) * 9 : 9);
+    m.ring.material.opacity = isActive ? Math.pow(near, 2.2) * 0.7 : 0;
+    if (m.t.kind === 'moon') { m.halo.material.opacity *= 0.5; m.core.material.opacity = 0; }
+  }
 
-  // ---- the guiding arrow, on a ring about the centre of the view
+  // the Moon itself
+  {
+    const p = locate(TARGETS.find(t => t.id === 'moon'), S.obs, now);
+    const mi = moonInfo(now);
+    moonMesh.visible = p.alt > -4;
+    moonMesh.position.copy(dirFromAzAlt(p.az, p.alt)).multiplyScalar(R * 0.9);
+    moonMesh.lookAt(0, 0, 0);
+    moonMesh.material.uniforms.uPhase.value = mi.phaseAngle * D2R;
+  }
+
+  // ---- the guiding arrow
   const ar = $('arrow');
-  const onScreen = (() => {
-    const p = target.clone().multiplyScalar(R * 0.98).project(camera);
-    return p.z < 1 && Math.abs(p.x) < 0.7 && Math.abs(p.y) < 0.65;
-  })();
+  const tdir = dirFromAzAlt(aAz, aAlt);
+  const pv = tdir.clone().multiplyScalar(R * 0.96).project(camera);
+  const onScreen = pv.z < 1 && Math.abs(pv.x) < 0.7 && Math.abs(pv.y) < 0.66;
   if (!onScreen && !S.locked) {
-    const dc = target.clone().applyQuaternion(camera.quaternion.clone().invert());
+    const dc = tdir.clone().applyQuaternion(camera.quaternion.clone().invert());
     const a = Math.atan2(dc.y, dc.x);
     const rad = Math.min(innerWidth, innerHeight) * 0.30;
     ar.classList.add('on');
-    ar.style.transform =
-      `translate(${(innerWidth/2 + Math.cos(a)*rad)|0}px, ${(innerHeight/2 - Math.sin(a)*rad)|0}px)`
+    ar.style.transform = `translate(${(innerWidth/2 + Math.cos(a)*rad)|0}px, ${(innerHeight/2 - Math.sin(a)*rad)|0}px)`
       + ` translate(-50%,-50%) rotate(${-a}rad)`;
   } else ar.classList.remove('on');
 
-  // ---- the lock
-  if (!S.locked && sep < 7 && alt > 3) {
-    S.locked = true; S.lockT = 0;
-    document.body.classList.add('locked');
-    if (navigator.vibrate) navigator.vibrate([30, 60, 30, 60, 120]);
-    setTimeout(() => $('found').classList.add('on'), 900);
-  }
-  if (S.locked) S.lockT += dt;
-
-  // ---- what to tell her
-  const say = $('say');
-  if (S.locked) {
-    say.style.opacity = 0;
-  } else if (alt < 0) {
-    say.style.opacity = 1;
-    if (!lastRise || now - riseCheck > 60000) {
-      riseCheck = now; lastRise = nextRise(S.star.pra, S.star.pdec, S.lat, S.lon, now);
+  // ---- holding the aim is what counts as finding it
+  const LOCK = 7;
+  if (!S.locked && sep < LOCK && aAlt > 2) {
+    S.lockHold += dt;
+    if (S.lockHold > 1.1) {
+      S.locked = true;
+      S.found.add(active.id);
+      document.body.classList.add('locked');
+      if (navigator.vibrate) navigator.vibrate([30, 60, 30, 60, 120]);
+      showFound(active, aDist, now);
+      refreshHud();
     }
-    const when = lastRise
-      ? lastRise.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
-      : null;
-    say.textContent = when
-      ? `نجمتُكِ تحت الأفق الآن… تشرق الساعة ${when}. انتظريها، فهي لا تُخلف موعداً.`
-      : 'نجمتُكِ تحت الأفق الآن. عودي بعد قليل.';
+  } else if (!S.locked) S.lockHold = Math.max(0, S.lockHold - dt * 2);
+  $('ret').style.setProperty('--hold', Math.min(1, S.lockHold / 1.1));
+
+  // ---- what to say
+  const pr = $('prompt');
+  if (S.locked) pr.classList.remove('on');
+  else if (aAlt < 0) {
+    pr.classList.add('on');
+    if (riseCache.id !== active.id || now - riseCache.at > 120000) {
+      riseCache = { id: active.id, at: +now, when: nextRise(active, S.obs, now) };
+    }
+    const w = riseCache.when
+      ? riseCache.when.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : null;
+    pr.innerHTML = w ? `${active.ar} تحت الأفق الآن · يشرق <em>${w}</em>`
+                     : `${active.ar} تحت الأفق الآن`;
   } else {
-    say.style.opacity = 1;
-    say.textContent = sep > 55
-      ? 'لُفّي بجسمك… نجمتُكِ في جهةٍ أخرى من السماء'
-      : sep > 22 ? 'اقتربتِ… واصلي في هذا الاتجاه'
-      : sep > 9  ? 'قريبةٌ جداً… ارفعي أو اخفضي قليلاً'
-                 : 'ثبّتي يدك…';
+    pr.classList.add('on');
+    pr.innerHTML = sep > 55 ? 'لُفّي بجسمكِ… <em>اتبعي السهم</em>'
+      : sep > 22 ? 'اقتربتِ…'
+      : sep > LOCK ? 'قريبةٌ جداً… ارفعي أو اخفضي قليلاً'
+      : '<em>ثبّتي يدكِ…</em>';
   }
 
-  // ---- the readouts
-  $('readL').innerHTML =
-    `ALT <b>${alt.toFixed(1)}°</b><br>AZ <b>${az.toFixed(1)}°</b><br>SEP <b>${sep.toFixed(1)}°</b>`;
+  // ---- readouts
+  $('readL').innerHTML = `ALT <b>${aAlt.toFixed(1)}°</b><br>AZ <b>${aAz.toFixed(1)}°</b><br>SEP <b>${sep > 180 ? '—' : sep.toFixed(1) + '°'}</b>`;
   $('readR').innerHTML =
     `${S.lat.toFixed(3)}°${S.lat >= 0 ? 'N' : 'S'} ${Math.abs(S.lon).toFixed(3)}°${S.lon >= 0 ? 'E' : 'W'}`
     + `<br>LST <b>${(((gmst(now) + S.lon) % 360 + 360) % 360 / 15).toFixed(2)}h</b>`
-    + `<br>HD 219134 · <b>21.35 ly</b>`;
-
+    + `<br>${active.lat}`;
   $('tripV').textContent = tripText(now);
+
+  // the log's live altitudes
+  if ($('log').classList.contains('on')) {
+    const rows = $('logList').children;
+    for (let i = 0; i < rows.length; i++) {
+      const p = locate(TARGETS[i], S.obs, now);
+      const a = rows[i].querySelector('.lg-a');
+      a.textContent = p.alt > 2 ? `${p.alt.toFixed(0)}°` : 'تحت الأفق';
+      rows[i].classList.toggle('down', p.alt <= 2);
+      rows[i].classList.toggle('seen', S.found.has(TARGETS[i].id));
+      rows[i].classList.toggle('cur', i === S.idx);
+    }
+  }
 
   renderer.render(scene, camera);
 }
 
+// ---------------------------------------------------------------- the card
+function showFound(t, distAu, now) {
+  $('fName').textContent = t.ar;
+  $('fLat').textContent = t.lat;
+  let facts = t.facts;
+  const km = distAu * 149597870.7;
+  facts = facts.replace('<b class="d"></b>',
+    `<b>${arNum(t.id === 'moon' ? Math.round(km / 1000) : Math.round(km / 1e6))}</b>`);
+  facts = facts.replace('<b class="p"></b>', `<b>${arNum(Math.round(moonInfo(now).frac * 100))}</b>`);
+  facts = facts.replace('<b class="lt"></b>', `<b>${arNum(Math.round(km / 299792.458 / 60))}</b>`);
+  $('fFacts').innerHTML = facts;
+  $('fLine').innerHTML = t.line;
+  $('fTrip').style.display = t.prime ? '' : 'none';
+  setTimeout(() => $('found').classList.add('on'), 700);
+}
+
 // ---------------------------------------------------------------- go
 fetch('./livesky.json').then(r => r.json()).then(d => {
-  S.data = d;
   buildSky(d);
+  buildMarks();
+  buildMoon();
   buildBand();
-  $('foundFacts').innerHTML =
-    `اسمها في السجلّات <b>HD 219134</b>، في كوكبة ذات الكرسي.<br>`
-    + `تبعد <b>٢١٫٣٥</b> سنة ضوئية، ولها كواكب تدور حولها.<br>`
-    + `الضوء الذي رأيتِه الآن غادرها في <b>ربيع ٢٠٠٥</b> — عام ولادتك.`;
+  buildLog();
   S.ready = true;
 }).catch(() => {
   $('open').innerHTML = '<div class="box"><div class="bd">تعذّر تحميل السماء. جرّبي تحديث الصفحة.</div></div>';

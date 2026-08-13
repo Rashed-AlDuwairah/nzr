@@ -114,7 +114,7 @@
   body.locked #ret, body.locked #band { opacity:0; transition:opacity 1.2s ease; }
 
   /* readouts down the sides */
-  .read { position:absolute; font-family:var(--f-lat); direction:ltr;
+  .read { position:absolute; font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate;
     font-size:clamp(9px,1.35vh,11px); letter-spacing:.13em; color:var(--dim);
     line-height:2.1; text-shadow:0 1px 8px #000; }
   #readL { left:max(16px,env(safe-area-inset-left)); bottom:calc(env(safe-area-inset-bottom,0px) + 56px); }
@@ -156,11 +156,12 @@
     background:linear-gradient(90deg,transparent,var(--ember),transparent);
     transform:scaleX(.3); transition:transform .6s cubic-bezier(.2,.7,.2,1); }
   .tool:hover::after { transform:scaleX(1); }
-  #foundCount { font-family:var(--f-lat); direction:ltr; letter-spacing:.2em;
-    font-size:clamp(.72rem,1.6vh,.86rem); color:var(--ember);
+  #foundCount { font-family:var(--f-ui); font-weight:500;
+    font-size:clamp(.74rem,1.65vh,.88rem); color:var(--ember);
     text-shadow:0 0 16px rgba(255,183,101,.5); }
-  #tally { display:flex; align-items:center; gap:9px; }
-  #tally .lat { letter-spacing:.28em; }
+  #tallyK { font-family:var(--f-ui); font-weight:300;
+    font-size:clamp(.72rem,1.6vh,.84rem); color:var(--faint); }
+  #tally { display:flex; align-items:center; gap:8px; }
 
   /* ---------- the observation log ---------- */
   #log { position:fixed; inset:0; z-index:47; display:flex; flex-direction:column;
@@ -176,7 +177,7 @@
   .logRow:last-child { border-bottom:0; }
   .lg-n { font-family:var(--f-ui); font-weight:400;
     font-size:clamp(.86rem,2vh,1.02rem); color:rgba(243,233,217,.86); }
-  .lg-a { font-family:var(--f-lat); direction:ltr; letter-spacing:.14em;
+  .lg-a { font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate; letter-spacing:.14em;
     font-size:clamp(.68rem,1.55vh,.82rem); color:var(--dim); }
   .logRow.down .lg-n { color:rgba(243,233,217,.34); }
   .logRow.down .lg-a { font-family:var(--f-ui); letter-spacing:0; color:rgba(243,233,217,.28); }
@@ -186,6 +187,32 @@
   .logRow.cur .lg-n { color:var(--ivory); }
   #logClose { pointer-events:none; }
   #log.on #logClose { pointer-events:auto; }
+
+  /* ---------- سماؤكِ الآن: the briefing ---------- */
+  #brief { position:fixed; inset:0; z-index:43; display:flex;
+    align-items:center; justify-content:center; padding:0 6vw;
+    background:radial-gradient(ellipse 130% 100% at 50% 45%,
+      rgba(4,5,12,.93) 0%, rgba(2,3,7,.965) 55%, rgba(1,2,5,.99) 100%);
+    opacity:0; pointer-events:none; transition:opacity 1s ease; }
+  #brief.on { opacity:1; pointer-events:auto; }
+  #brief .bx { width:min(44ch,90vw); max-height:90vh; overflow-y:auto;
+    display:flex; flex-direction:column; gap:2.2vh; align-items:center;
+    text-align:center; padding:3vh 0; -webkit-overflow-scrolling:touch; }
+  #bWhere, #bSky, #bList p, #bIss, #bBack {
+    font-family:var(--f-body); font-size:clamp(.84rem,1.98vh,1.02rem);
+    line-height:2.05; color:rgba(243,233,217,.8); }
+  #bWhere b, #bSky b, #bList b, #bIss b, #bBack b { color:var(--ember); font-weight:400; }
+  .n { direction:ltr; unicode-bidi:isolate; }
+  #bSky { font-family:var(--f-ui); font-weight:400; color:var(--ivory);
+    font-size:clamp(.86rem,2vh,1.06rem); line-height:1.95; }
+  #bList { display:flex; flex-direction:column; gap:1.5vh; }
+  #bIss { position:relative; padding-top:2.2vh; }
+  #bIss::before { content:''; position:absolute; top:0; left:22%; right:22%; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(217,228,255,.32),transparent); }
+  #bIss b { color:var(--star); }
+  #bBack { color:var(--dim); font-size:clamp(.76rem,1.75vh,.9rem); }
+  #briefGo { pointer-events:none; }
+  #brief.on #briefGo { pointer-events:auto; }
 
   /* ---------- the moment she finds it ---------- */
   #found { z-index:44; flex-direction:column; text-align:center;
@@ -206,7 +233,7 @@
   #fTrip { display:flex; flex-direction:column; gap:.7vh; }
   #tripT { font-family:var(--f-body); font-size:clamp(.66rem,1.55vh,.82rem);
     color:var(--faint); }
-  #tripV { font-family:var(--f-lat); direction:ltr; letter-spacing:.14em;
+  #tripV { font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate; letter-spacing:.14em;
     font-size:clamp(.78rem,1.9vh,1.02rem); color:var(--ember);
     text-shadow:0 0 20px rgba(255,183,101,.55); }
   #nextBtn { pointer-events:none; }
@@ -237,12 +264,13 @@
     <div class="lat">The Observatory</div>
     <h1>مِرصَد نُورة</h1>
     <div class="rule"></div>
-    <div class="bd">فوقكِ الآن، في هذه اللحظة بالذات… نجمةٌ حقيقية تحرسكِ،<br>
-      يصل ضوءُها إلى عينيكِ بعد رحلةٍ طويلة بدأت في ذات العام الذي وُلدتِ فيه.<br><br>
-      وليست وحدها: عشرة أشياء حقيقية فوق رأسكِ الليلة — القمر بطَوره،
-      وكواكب، ونجوم، ومجرّة، ومَطر الشُّهب.<br>
-      هذا المِرصد يعرف مكانَكِ ووقتَكِ، ويحسب أين يقف كلٌّ منها في سمائكِ أنتِ.<br><br>
-      اخرجي إلى مكانٍ ترينَ فيه السماء… وارفعي جوالكِ ولُفّي به.</div>
+    <div class="bd">استمتعي يا روحي 🥹<br>
+      هالمرّة لو أشوفكِ تقولين ودّي أسافر للفضاء… يا ويلك.<br><br>
+      الحين أنا حقّقت لكِ هالشي 🥹 خلّيتكِ تسافرين، وفوقه صنعت لكِ مرصداً لكِ أنتِ —
+      مرتبط بالأقمار الصناعية، ومرتبط بالنجوم الآن، في هذا الوقت تحديداً.<br>
+      لو تدخلين الموقع كل فترة، بتشوفين إن الموضوع جالس يتحدّث… بمرصدكِ.<br><br>
+      اخرجي لمكانٍ ترين فيه السماء، وارفعي جوالكِ ولُفّي به —
+      وأنا بقول لكِ وش فوق راسكِ بالضبط.</div>
     <div class="rule"></div>
     <div class="act" id="beginBtn">افتحي السماء</div>
     <div class="lat" id="openHint">Allow location &amp; motion</div>
@@ -275,10 +303,11 @@
   <div class="read" id="readR"></div>
 
   <div id="tools">
+    <div class="tool" id="briefBtn">سماؤكِ الآن</div>
     <div class="tool" id="logBtn">سِجِلّ الرصد</div>
     <div id="tally">
-      <span class="lat">Found</span>
-      <span id="foundCount">٠ / ١٠</span>
+      <span id="tallyK">رُصِدَ</span>
+      <span id="foundCount">٠ من ١١</span>
     </div>
   </div>
 </div>
@@ -289,6 +318,20 @@
   <div id="logList"></div>
   <div class="rule"></div>
   <div class="act" id="logClose">أغلقي السِّجل</div>
+</div>
+
+<div id="brief">
+  <div class="bx">
+    <div class="lat">Your Sky · Right Now</div>
+    <div class="rule"></div>
+    <div id="bWhere"></div>
+    <div id="bSky"></div>
+    <div id="bList"></div>
+    <div id="bIss"></div>
+    <div id="bBack"></div>
+    <div class="rule"></div>
+    <div class="act" id="briefGo">ارفعي رأسكِ</div>
+  </div>
 </div>
 
 <div class="layer" id="found">

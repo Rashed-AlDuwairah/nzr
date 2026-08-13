@@ -8,7 +8,9 @@
 // ============================================================
 import * as THREE from 'three';
 import { buildNoura, buildRiyadh } from './world.js';
-import { TARGETS, locate, nextRise, moonInfo, Astro } from './targets.js';
+import { TARGETS, LIVE, locate, nextRise, moonInfo, Astro } from './targets.js';
+import { issNow, nextPass } from './iss.js';
+import { sky, census, upcoming, moonLine, clock as hhmm, dirName, sinceLast } from './brief.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const $ = id => document.getElementById(id);
@@ -41,6 +43,8 @@ const S = {
   idx: 0, found: new Set(), locked: false, lockHold: 0,
   ready: false, started: false,
   obs: null,
+  mq: new THREE.Quaternion(), hasMq: false, lastMotion: 0,
+  iss: null, issA: null, issPass: null, issErr: false,
 };
 window.__OBS = S;
 
@@ -273,6 +277,7 @@ function attachMotion() {
   const handler = ev => {
     if (ev.alpha == null) return;
     S.useMotion = true;
+    S.lastMotion = performance.now();
     if (typeof ev.webkitCompassHeading === 'number' && !isNaN(ev.webkitCompassHeading))
       S.heading = ev.webkitCompassHeading;
     else if (ev.absolute === true) S.heading = (360 - ev.alpha) % 360;
@@ -281,7 +286,8 @@ function attachMotion() {
     q.setFromEuler(e);
     q.multiply(q1);
     q.multiply(new THREE.Quaternion().setFromAxisAngle(zee, -scr));
-    camera.quaternion.copy(q);
+    // the sensor is noisy at the last degree; the view must not shiver
+    S.mq.copy(q); S.hasMq = true;
   };
   const add = () => {
     addEventListener('deviceorientationabsolute', handler, true);
@@ -347,7 +353,39 @@ function refreshHud() {
     else if (i === S.idx) b.className = 'next';
     track.appendChild(b);
   });
-  $('foundCount').textContent = `${arNum(S.found.size)} / ${arNum(TARGETS.length)}`;
+  // said in Arabic rather than as "3 / 11", which bidi keeps turning around
+  $('foundCount').textContent = `${arNum(S.found.size)} من ${arNum(TARGETS.length)}`;
+}
+
+// ---------------------------------------------------------------- the live link
+//  The station's position is asked for over the network, so it is the one
+//  thing here that can fail. It fails quietly.
+async function pollISS() {
+  try {
+    const p = await issNow();
+    S.issA = S.iss; S.iss = p;
+    S.issErr = false;
+    if ($('brief').classList.contains('on')) paintISS();
+  } catch (_) {
+    S.issErr = true;
+    if ($('brief').classList.contains('on')) paintISS();
+  }
+  setTimeout(pollISS, S.iss ? 4000 : 20000);
+}
+// between two answers, carry it forward along its own track
+function issAtNow(now) {
+  const b = S.iss, a = S.issA;
+  if (!b) return null;
+  if (!a || b.at <= a.at) return b;
+  const k = Math.min(3, (now - b.at) / (b.at - a.at));
+  let dLon = b.lon - a.lon;
+  if (dLon > 180) dLon -= 360; else if (dLon < -180) dLon += 360;
+  let lon = b.lon + dLon * k;
+  if (lon > 180) lon -= 360; else if (lon < -180) lon += 360;
+  return { lat: b.lat + (b.lat - a.lat) * k, lon, alt: b.alt + (b.alt - a.alt) * k, at: now };
+}
+async function findPass() {
+  try { S.issPass = await nextPass(S.lat, S.lon); } catch (_) { S.issPass = null; }
 }
 
 // ---------------------------------------------------------------- start
@@ -355,6 +393,11 @@ async function begin() {
   if (S.started) return;
   S.started = true;
   $('openHint').textContent = '…';
+
+  // iOS only grants the motion sensors if we ask inside her tap, before
+  // anything is awaited — so this comes first, and location follows.
+  const motion = attachMotion();
+
   await new Promise(res => {
     if (!navigator.geolocation) return res();
     const to = setTimeout(res, 9000);
@@ -365,9 +408,19 @@ async function begin() {
     }, () => { clearTimeout(to); res(); }, { enableHighAccuracy: false, timeout: 8000 });
   });
   S.obs = new Astro.Observer(S.lat, S.lon, 600);
-  await attachMotion();
+  await motion.catch(() => {});
+  // give the sensor a moment to say whether it is there at all
+  await new Promise(r => setTimeout(r, 700));
+
+  pollISS();
+  findPass();
 
   $('open').classList.add('gone');
+  showBrief();
+}
+
+function enterSky() {
+  $('brief').classList.remove('on');
   $('hud').classList.add('on');
   refreshHud();
 
@@ -380,7 +433,83 @@ async function begin() {
     setTimeout(() => $('note').classList.remove('on'), 13000);
   }
 }
+
+// a number, a degree sign or a clock time must not be re-ordered by the
+// surrounding right-to-left text
+const num = v => `<b class="n">${v}</b>`;
+
+// ---------------------------------------------------------------- the briefing
+//  Written fresh every time it opens, from her coordinates and her clock.
+function showBrief() {
+  const now = new Date();
+  const st = sky(S.obs, now);
+  const ml = moonLine(now);
+  const c = census(S.obs, now);
+  const next = upcoming(S.obs, now, c.down);
+  // read once per visit, so reopening the briefing does not erase the answer
+  if (S.back === undefined) S.back = sinceLast(S.obs, now);
+  const back = S.back;
+
+  $('bWhere').innerHTML = S.placed
+    ? `موقعكِ الآن ${num(arNum(Math.abs(S.lat).toFixed(2)) + '°')}${S.lat >= 0 ? ' شمالاً' : ' جنوباً'}`
+      + ` و${num(arNum(Math.abs(S.lon).toFixed(2)) + '°')}${S.lon >= 0 ? ' شرقاً' : ' غرباً'}،`
+      + ` والساعة عندكِ ${num(hhmm(now))}.`
+    : `لم يصلني موقعكِ، فحسبتُ لكِ سماء <b>الرياض</b>، والساعة ${num(hhmm(now))}.`;
+  $('bSky').innerHTML = `<b>${st.name}</b><br>${st.note}`;
+
+  const rows = [];
+  rows.push(`القمر الليلة <b>${ml.name}</b>، ووجهه المضيء ${num(arNum(ml.pct) + '٪')}.`);
+  if (c.up.length) {
+    const names = c.up.slice(0, 4).map(u =>
+      `<b>${u.t.ar}</b> على ارتفاع ${num(arNum(Math.round(u.alt)) + '°')} في ${dirName(u.az)}`);
+    rows.push(`فوق أفقكِ الآن <b>${arNum(c.up.length)}</b> من الأهداف: ` + names.join('، ')
+      + (c.up.length > 4 ? '، وغيرها.' : '.'));
+  } else {
+    rows.push('لا شيء من أهدافكِ فوق الأفق في هذه الدقيقة — كلها تحتك، والأرض تدور بها نحوكِ.');
+  }
+  if (next.length)
+    rows.push('وما زال ينتظر دورَه: ' + next.map(n => `<b>${n.t.ar}</b> يشرق ${num(hhmm(n.when))}`).join('، ') + '.');
+  $('bList').innerHTML = rows.map(r => `<p>${r}</p>`).join('');
+
+  $('bBack').innerHTML = back
+    ? `آخر مرة وقفتِ هنا كانت ${num(hhmm(back.last))}. منذ تلك اللحظة دارت سماؤكِ `
+      + `${num(arNum(Math.round(back.deg)))} درجة`
+      + (back.risen.length ? `، وشرق من وقتها <b>${back.risen.join('</b> و<b>')}</b>.` : '.')
+    : '';
+  $('bBack').style.display = back ? '' : 'none';
+
+  paintISS();
+  $('brief').classList.add('on');
+}
+
+function paintISS() {
+  const el = $('bIss');
+  if (!el) return;
+  if (S.issErr && !S.iss) {
+    el.innerHTML = 'لم أتمكّن من الوصول إلى المحطة الآن — سأظل أحاول وأنتِ ترصدين.';
+    return;
+  }
+  if (!S.iss) { el.innerHTML = 'أسأل عن محطة الفضاء الدولية…'; return; }
+  LIVE.iss = issAtNow(Date.now());
+  const a = locate(TARGETS.find(t => t.id === 'iss'), S.obs, new Date());
+  if (a.stale) { el.innerHTML = 'أسأل عن محطة الفضاء الدولية…'; return; }
+  const km = Math.round(a.km);
+  let line = `محطة الفضاء الدولية تبعد عنكِ الآن ${num(arNum(km.toLocaleString('en-US')))} كيلومتراً`;
+  if (a.alt > 0) line += `، وهي <b>فوق أفقكِ</b> في ${dirName(a.az)} على ارتفاع ${num(arNum(Math.round(a.alt)) + '°')} — ارفعي رأسكِ الآن.`;
+  else if (S.issPass && S.issPass.visible && S.issPass.rise)
+    line += `. تمرّ فوقكِ ${num(hhmm(new Date(S.issPass.rise)))} وترتفع إلى ${num(arNum(Math.round(S.issPass.peak.alt)) + '°')}.`;
+  else line += `، وتدور حول الأرض كل ٩٣ دقيقة، فانتظريها.`;
+  el.innerHTML = line;
+}
+
 $('beginBtn').addEventListener('click', begin);
+$('briefGo').addEventListener('click', () => {
+  if ($('hud').classList.contains('on')) $('brief').classList.remove('on');
+  else enterSky();
+});
+$('briefBtn').addEventListener('click', showBrief);
+// while she is reading it, it keeps rewriting itself — the sky is moving
+setInterval(() => { if ($('brief').classList.contains('on')) showBrief(); }, 20000);
 $('logBtn').addEventListener('click', () => toggleLog());
 $('logClose').addEventListener('click', () => toggleLog(false));
 $('nextBtn').addEventListener('click', () => {
@@ -418,6 +547,7 @@ function frame() {
   if (!S.ready || !S.obs) { renderer.render(scene, camera); return; }
 
   starMat.uniforms.uTime.value = time;
+  LIVE.iss = issAtNow(+now);
 
   // turn the celestial sphere onto her horizon
   const lst = (gmst(now) + S.lon) * D2R;
@@ -426,6 +556,11 @@ function frame() {
     .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -lst));
 
   // ---- camera
+  if (S.useMotion) {
+    if (S.hasMq) camera.quaternion.slerp(S.mq, 1 - Math.exp(-dt * 12));
+    // if the sensor falls silent, hand the view back to her finger
+    if (performance.now() - S.lastMotion > 2500) { S.useMotion = false; S.heading = null; }
+  }
   if (!S.useMotion) {
     S.yaw += S.yawV; S.pitch += S.pitchV;
     S.yawV *= Math.exp(-dt * 4.5); S.pitchV *= Math.exp(-dt * 4.5);
@@ -510,10 +645,16 @@ function frame() {
     if (riseCache.id !== active.id || now - riseCache.at > 120000) {
       riseCache = { id: active.id, at: +now, when: nextRise(active, S.obs, now) };
     }
-    const w = riseCache.when
-      ? riseCache.when.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : null;
-    pr.innerHTML = w ? `${active.ar} تحت الأفق الآن · يشرق <em>${w}</em>`
-                     : `${active.ar} تحت الأفق الآن`;
+    if (active.kind === 'sat') {
+      pr.innerHTML = !LIVE.iss ? 'أسأل عن المحطة…'
+        : (S.issPass && S.issPass.visible && S.issPass.rise)
+          ? `المحطة خلف الأفق · تمرّ فوقكِ <em>${hhmm(new Date(S.issPass.rise))}</em>`
+          : 'المحطة خلف الأفق الآن · تدور حول الأرض كل ٩٣ دقيقة';
+    } else {
+      const w = hhmm(riseCache.when);
+      pr.innerHTML = w ? `${active.ar} تحت الأفق الآن · يشرق <em>${w}</em>`
+                       : `${active.ar} تحت الأفق الآن`;
+    }
   } else {
     pr.classList.add('on');
     pr.innerHTML = sep > 55 ? 'لُفّي بجسمكِ… <em>اتبعي السهم</em>'
@@ -536,8 +677,8 @@ function frame() {
     for (let i = 0; i < rows.length; i++) {
       const p = locate(TARGETS[i], S.obs, now);
       const a = rows[i].querySelector('.lg-a');
-      a.textContent = p.alt > 2 ? `${p.alt.toFixed(0)}°` : 'تحت الأفق';
-      rows[i].classList.toggle('down', p.alt <= 2);
+      a.textContent = p.stale ? 'بلا اتصال' : p.alt > 2 ? `${p.alt.toFixed(0)}°` : 'تحت الأفق';
+      rows[i].classList.toggle('down', p.stale || p.alt <= 2);
       rows[i].classList.toggle('seen', S.found.has(TARGETS[i].id));
       rows[i].classList.toggle('cur', i === S.idx);
     }
@@ -552,8 +693,10 @@ function showFound(t, distAu, now) {
   $('fLat').textContent = t.lat;
   let facts = t.facts;
   const km = distAu * 149597870.7;
-  facts = facts.replace('<b class="d"></b>',
-    `<b>${arNum(t.id === 'moon' ? Math.round(km / 1000) : Math.round(km / 1e6))}</b>`);
+  const dNum = t.kind === 'sat' ? Math.round(LIVE.iss ? LIVE.iss.alt : 420)  // its height overhead
+             : t.id === 'moon'  ? Math.round(km / 1000)                      // thousands of km
+             : Math.round(km / 1e6);                                         // millions of km
+  facts = facts.replace('<b class="d"></b>', `<b>${arNum(dNum)}</b>`);
   facts = facts.replace('<b class="p"></b>', `<b>${arNum(Math.round(moonInfo(now).frac * 100))}</b>`);
   facts = facts.replace('<b class="lt"></b>', `<b>${arNum(Math.round(km / 299792.458 / 60))}</b>`);
   $('fFacts').innerHTML = facts;

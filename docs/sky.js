@@ -517,13 +517,39 @@ export class SkyNight {
   }
 
   // ------------------------------------------------ quest flow
-  // seven marks: the ones she has already taken burn, the rest wait
-  refreshHud() {
+  // The objective reads like a quest tracker: what she is after, and
+  // seven marks on a thread — burnt for taken, breathing for the next.
+  refreshHud(popIndex = -1) {
     const AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-    const marks = document.querySelectorAll('#memCount b');
-    marks.forEach((b, i) => b.classList.toggle('lit', i < this.stationIdx));
+    const ar = n => String(n).split('').map(d => AR[+d]).join('');
+    const marks = document.querySelectorAll('#track b');
+    marks.forEach((b, i) => {
+      b.classList.toggle('lit', i < this.stationIdx);
+      b.classList.toggle('next', i === this.stationIdx && this.stationIdx < 7);
+      if (i === popIndex) { b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); }
+    });
+    const v = document.getElementById('obV');
+    if (v) {
+      const st = this.stations && this.stations[this.stationIdx];
+      const text = this.stationIdx >= 7
+        ? 'اكتمل الضوء'
+        : `الضوء ${ar(this.stationIdx + 1)} من ٧ · ${st ? st.ar : ''}`;
+      if (v.textContent !== text) {
+        v.classList.add('swap');
+        setTimeout(() => { v.textContent = text; v.classList.remove('swap'); }, 320);
+      }
+    }
     const w = document.getElementById('wishNum');
-    if (w) w.textContent = String(this.wishes).split('').map(d => AR[+d]).join('');
+    if (w) w.textContent = ar(this.wishes);
+  }
+
+  // the bottom-centre line: what to do, right now
+  setPrompt(text) {
+    const p = document.getElementById('prompt');
+    if (!p) return;
+    if (!text) { p.classList.remove('on'); return; }
+    if (p.innerHTML !== text) p.innerHTML = text;
+    p.classList.add('on');
   }
 
   whisperToStation() {
@@ -568,8 +594,9 @@ export class SkyNight {
       ul.appendChild(li);
     }
     document.getElementById('memCard').classList.add('on');
+    const popped = this.stationIdx;
     this.stationIdx++;
-    this.refreshHud();
+    this.refreshHud(popped);
   }
 
   // ------------------------------------------------ finale: light develops the photograph
@@ -746,6 +773,18 @@ export class SkyNight {
       st.halo.material.opacity += (target - st.halo.material.opacity) * (1 - Math.exp(-dt * 3));
     }
     if (this.audio && this.audio.shimmer) this.audio.shimmer(shimmer * (this.exposing ? 1.6 : 1.0));
+
+    // ---------- the prompt, driven by how close her light is
+    if (this.phase === 'play' && this.finaleT < 0 && active
+        && !document.getElementById('memCard').classList.contains('on')
+        && !document.getElementById('tut').classList.contains('on')) {
+      const ang = this.lensDir.angleTo(active.dir) * 180 / Math.PI;
+      this.setPrompt(
+        this.exposing ? 'لا ترفعي إصبعك… <em>الضوء يكتمل</em>'
+        : ang < 9  ? 'ضعي إصبعك على النجمة <em>وأمسكيها</em>'
+        : ang < 26 ? 'اقتربتِ…'
+        : 'اتبعي السهم');
+    } else this.setPrompt('');
 
     // ---------- exposure
     const ring = document.getElementById('expRing');

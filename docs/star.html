@@ -10,10 +10,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ivory:#f3e9d9; --dim:rgba(243,233,217,.52); --faint:rgba(243,233,217,.24);
+    --f-display:'Aref Ruqaa', serif;
+    --f-body:   'Amiri', serif;
+    --f-ui:     'IBM Plex Sans Arabic', system-ui, sans-serif;
+    --f-lat:    'Cinzel', serif;
+    --ivory:#f3e9d9; --dim:rgba(243,233,217,.52); --faint:rgba(243,233,217,.26);
     --ember:#ffb765; --star:#d9e4ff;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
+  /* Arabic is a joined script — never space its letters */
+  [lang="ar"], [dir="rtl"] { letter-spacing:0; }
   html, body { width:100%; height:100%; overflow:hidden; background:#03040a;
     overscroll-behavior:none; touch-action:none;
     -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
@@ -25,12 +31,11 @@
     rgba(3,4,10,.30) 0%, rgba(2,3,7,.74) 58%, rgba(1,2,5,.92) 100%); }
   .rule { width:min(280px,44vw); height:1px; flex:none;
     background:linear-gradient(90deg,transparent,rgba(255,197,130,.55),transparent); }
-  .lat { font-family:'Cinzel',serif; letter-spacing:.4em; text-transform:uppercase;
+  .lat { font-family:var(--f-lat); letter-spacing:.4em; text-transform:uppercase;
     direction:ltr; color:var(--faint); font-size:clamp(.55rem,1.4vh,.72rem); }
-  .ar { font-family:'Aref Ruqaa',serif; color:var(--ivory); }
-  .bd { font-family:'Amiri',serif; color:rgba(243,233,217,.8); line-height:2.15; }
+  .bd { font-family:var(--f-body); color:rgba(243,233,217,.82); line-height:2.1; }
   .act { pointer-events:none; cursor:pointer; position:relative;
-    font-family:'Aref Ruqaa',serif; font-size:clamp(.95rem,2.2vh,1.15rem);
+    font-family:var(--f-display); font-size:clamp(.95rem,2.2vh,1.15rem);
     color:var(--ivory); padding-bottom:.5rem; }
   .act::after { content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
     background:linear-gradient(90deg,transparent,var(--ember),transparent);
@@ -43,22 +48,43 @@
     width:100%; transition:opacity 1.6s ease; }
   #open .box { width:min(46ch,86vw); display:flex; flex-direction:column;
     gap:3vh; align-items:center; }
-  #open h1 { font-family:'Aref Ruqaa',serif; font-weight:400; color:var(--ivory);
+  #open h1 { font-family:var(--f-display); font-weight:400; color:var(--ivory);
     font-size:clamp(1.7rem,5.4vh,3rem); text-shadow:0 0 50px rgba(255,205,150,.25); }
   #open .bd { font-size:clamp(.85rem,2.1vh,1.1rem); }
   #open.gone { opacity:0; pointer-events:none; }
+  #open.gone .act { pointer-events:none; }
 
   /* ---------- the instrument ---------- */
   #hud { position:fixed; inset:0; z-index:20; pointer-events:none;
     opacity:0; transition:opacity 2s ease; }
   #hud.on { opacity:1; }
+  /* scrims: the readouts must survive over a bright patch of sky */
+  #hud::before { content:''; position:absolute; left:0; right:0; top:0; height:24vh;
+    background:linear-gradient(to bottom, rgba(2,3,8,.74), transparent); }
+  #hud::after { content:''; position:absolute; left:0; right:0; bottom:0; height:30vh;
+    background:linear-gradient(to top, rgba(2,3,8,.8), transparent); }
 
-  /* reticle at the centre of the view */
-  #ret { position:absolute; left:50%; top:50%; width:clamp(58px,11vh,86px);
-    height:clamp(58px,11vh,86px); margin-left:-.5em; transform:translate(-50%,-50%);
-    color:var(--faint); transition:color .6s ease, transform .6s ease; }
-  #ret svg { width:100%; height:100%; overflow:visible; }
-  body.locked #ret { color:var(--ember); transform:translate(-50%,-50%) scale(1.14); }
+  /* --- the objective, top corner where the eye starts (RTL: right) --- */
+  #objective { position:absolute; top:calc(env(safe-area-inset-top,0px) + 62px);
+    right:max(20px, env(safe-area-inset-right)); text-align:right;
+    display:flex; flex-direction:column; gap:.7vh; }
+  #obK { font-family:var(--f-lat); font-size:clamp(.5rem,1.2vh,.62rem);
+    letter-spacing:.3em; direction:ltr; color:var(--faint); }
+  #obV { font-family:var(--f-ui); font-weight:500;
+    font-size:clamp(.9rem,2.1vh,1.12rem); color:var(--ivory);
+    text-shadow:0 1px 12px #000; }
+  #track { position:relative; display:flex; align-items:center; gap:9px;
+    flex-direction:row-reverse; margin-top:.5vh; }
+  #track::before { content:''; position:absolute; right:3px; left:3px; top:50%;
+    height:1px; background:rgba(243,233,217,.16); }
+  #track b { position:relative; width:9px; height:9px; display:block;
+    background:rgba(243,233,217,.32);
+    clip-path:polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+    transition:background .7s ease, transform .7s cubic-bezier(.2,1.6,.4,1), filter .7s ease; }
+  #track b.lit { background:var(--ember); transform:scale(1.45);
+    filter:drop-shadow(0 0 8px rgba(255,183,101,.95)); }
+  #track b.next { animation:markWait 2.4s ease-in-out infinite; }
+  @keyframes markWait { 0%,100%{background:rgba(243,233,217,.32);} 50%{background:rgba(255,183,101,.62);} }
 
   /* the compass band across the top */
   #band { position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 14px);
@@ -68,23 +94,33 @@
   .tk { position:absolute; top:0; width:1px; background:var(--faint); }
   .tk.maj { background:rgba(243,233,217,.55); }
   .tkl { position:absolute; top:15px; transform:translateX(-50%);
-    font-family:'Cinzel',serif; font-size:11px; letter-spacing:.16em;
+    font-family:var(--f-lat); font-size:11px; letter-spacing:.16em;
     color:var(--dim); direction:ltr; white-space:nowrap; }
   #bandMark { position:absolute; left:50%; top:0; width:1px; height:12px;
     background:var(--ember); transform:translateX(-50%);
     box-shadow:0 0 8px rgba(255,183,101,.9); }
 
+  /* reticle at the centre of the view, with the hold ring */
+  #ret { --hold:0; position:absolute; left:50%; top:50%;
+    width:clamp(60px,12vh,92px); height:clamp(60px,12vh,92px);
+    transform:translate(-50%,-50%); color:var(--faint);
+    transition:color .6s ease, transform .6s ease; }
+  #ret svg { width:100%; height:100%; overflow:visible; }
+  #ret .hold { stroke:var(--ember); stroke-linecap:round;
+    stroke-dasharray:calc(var(--hold) * 257) 257;
+    transform:rotate(-90deg); transform-origin:50% 50%;
+    filter:drop-shadow(0 0 7px rgba(255,183,101,.9)); }
+  body.locked #ret { color:var(--ember); transform:translate(-50%,-50%) scale(1.14); }
+  body.locked #ret, body.locked #band { opacity:0; transition:opacity 1.2s ease; }
+
   /* readouts down the sides */
-  .read { position:absolute; font-family:'Cinzel',serif; direction:ltr;
+  .read { position:absolute; font-family:var(--f-lat); direction:ltr;
     font-size:clamp(9px,1.35vh,11px); letter-spacing:.13em; color:var(--dim);
     line-height:2.1; text-shadow:0 1px 8px #000; }
-  #readL { left:max(16px,env(safe-area-inset-left)); bottom:calc(env(safe-area-inset-bottom,0px) + 14px); }
-  #readR { right:max(16px,env(safe-area-inset-right)); bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+  #readL { left:max(16px,env(safe-area-inset-left)); bottom:calc(env(safe-area-inset-bottom,0px) + 56px); }
+  #readR { right:max(16px,env(safe-area-inset-right)); bottom:calc(env(safe-area-inset-bottom,0px) + 56px);
     text-align:right; }
-  /* a scrim so the instrument reads over a bright patch of sky */
-  #hud::after { content:''; position:absolute; left:0; right:0; bottom:0; height:34vh;
-    background:linear-gradient(to top, rgba(2,3,8,.82), transparent); pointer-events:none; z-index:-1; }
-  .read b { color:rgba(243,233,217,.82); font-weight:400; }
+  .read b { color:rgba(243,233,217,.85); font-weight:400; }
 
   /* the guiding arrow, on a ring around the centre */
   #arrow { position:absolute; left:0; top:0; width:17px; height:17px;
@@ -95,44 +131,102 @@
   @keyframes pulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(255,183,101,.7));}
     50%{filter:drop-shadow(0 0 16px rgba(255,183,101,1));} }
 
-  /* the line that tells her what to do */
-  #say { position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 66px);
-    text-align:center; padding:0 8vw; font-family:'Amiri',serif;
-    font-size:clamp(.8rem,1.95vh,1.05rem); line-height:2;
-    color:rgba(243,233,217,.85); text-shadow:0 1px 14px #000,0 0 30px rgba(0,0,0,.9);
-    transition:opacity .8s ease; }
+  /* the contextual prompt, bottom-centre where a game puts its prompts */
+  #prompt { position:absolute; left:0; right:0;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 108px);
+    text-align:center; padding:0 8vw;
+    font-family:var(--f-ui); font-weight:400;
+    font-size:clamp(.86rem,2vh,1.06rem); line-height:1.9;
+    color:var(--ivory); text-shadow:0 1px 14px #000, 0 0 34px rgba(0,0,0,.9);
+    opacity:0; transition:opacity .7s ease; }
+  #prompt.on { opacity:1; }
+  #prompt em { font-style:normal; color:var(--ember); }
+  body.locked #prompt, body.locked #arrow { opacity:0 !important; }
 
-  /* the counter of the light's journey */
-  #trip { position:absolute; left:50%; transform:translateX(-50%);
-    bottom:calc(env(safe-area-inset-bottom,0px) + 86px);
-    width:min(34ch,80vw); text-align:center; opacity:0; transition:opacity 1.4s ease; }
-  #trip.on { opacity:1; }
-  #tripT { font-family:'Amiri',serif; font-size:clamp(.66rem,1.55vh,.82rem);
-    color:var(--faint); margin-bottom:.7vh; }
-  #tripV { font-family:'Cinzel',serif; direction:ltr; letter-spacing:.14em;
-    font-size:clamp(.78rem,1.9vh,1.02rem); color:var(--ember);
-    text-shadow:0 0 20px rgba(255,183,101,.55); }
+  /* --- tools: the log and the tally, kept low and quiet --- */
+  #tools { position:absolute; left:0; right:0;
+    bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+    display:flex; align-items:center; justify-content:center; gap:22px; }
+  .tool { pointer-events:auto; cursor:pointer; position:relative;
+    font-family:var(--f-ui); font-weight:400; font-size:clamp(.76rem,1.75vh,.9rem);
+    color:var(--ivory); opacity:.78; padding:.45rem .1rem;
+    text-shadow:0 1px 10px #000; transition:opacity .4s ease; }
+  .tool:hover { opacity:1; }
+  .tool::after { content:''; position:absolute; left:0; right:0; bottom:.1rem; height:1px;
+    background:linear-gradient(90deg,transparent,var(--ember),transparent);
+    transform:scaleX(.3); transition:transform .6s cubic-bezier(.2,.7,.2,1); }
+  .tool:hover::after { transform:scaleX(1); }
+  #foundCount { font-family:var(--f-lat); direction:ltr; letter-spacing:.2em;
+    font-size:clamp(.72rem,1.6vh,.86rem); color:var(--ember);
+    text-shadow:0 0 16px rgba(255,183,101,.5); }
+  #tally { display:flex; align-items:center; gap:9px; }
+  #tally .lat { letter-spacing:.28em; }
+
+  /* ---------- the observation log ---------- */
+  #log { position:fixed; inset:0; z-index:47; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2.2vh;
+    background:radial-gradient(ellipse 120% 100% at 50% 50%, rgba(3,4,10,.955), rgba(1,2,5,.995));
+    opacity:0; pointer-events:none; transition:opacity .7s ease; }
+  #log.on { opacity:1; pointer-events:auto; }
+  #logList { width:min(38ch,88vw); max-height:62vh; overflow-y:auto;
+    display:flex; flex-direction:column; }
+  .logRow { all:unset; cursor:pointer; display:flex; align-items:baseline;
+    justify-content:space-between; gap:1.4rem; padding:1.15vh .2rem;
+    border-bottom:1px solid rgba(243,233,217,.09); }
+  .logRow:last-child { border-bottom:0; }
+  .lg-n { font-family:var(--f-ui); font-weight:400;
+    font-size:clamp(.86rem,2vh,1.02rem); color:rgba(243,233,217,.86); }
+  .lg-a { font-family:var(--f-lat); direction:ltr; letter-spacing:.14em;
+    font-size:clamp(.68rem,1.55vh,.82rem); color:var(--dim); }
+  .logRow.down .lg-n { color:rgba(243,233,217,.34); }
+  .logRow.down .lg-a { font-family:var(--f-ui); letter-spacing:0; color:rgba(243,233,217,.28); }
+  .logRow.seen .lg-n { color:var(--ember); }
+  .logRow.seen .lg-n::after { content:' ✦'; font-size:.7em; opacity:.8; }
+  .logRow.cur { background:linear-gradient(90deg,transparent,rgba(255,183,101,.09),transparent); }
+  .logRow.cur .lg-n { color:var(--ivory); }
+  #logClose { pointer-events:none; }
+  #log.on #logClose { pointer-events:auto; }
 
   /* ---------- the moment she finds it ---------- */
-  #found { z-index:44; flex-direction:column; gap:2.6vh; text-align:center;
-    opacity:0; transition:opacity 3s ease; }
+  #found { z-index:44; flex-direction:column; text-align:center;
+    background:radial-gradient(ellipse 130% 100% at 50% 45%,
+      rgba(4,5,12,.90) 0%, rgba(2,3,7,.955) 55%, rgba(1,2,5,.985) 100%);
+    opacity:0; transition:opacity 2.4s ease; }
   #found.on { opacity:1; }
   #found .box { width:min(46ch,86vw); display:flex; flex-direction:column;
-    gap:2.4vh; align-items:center; max-height:88vh; overflow-y:auto; padding:2vh 0; }
-  /* the readouts stay; everything else steps back for the moment itself */
-  body.locked #trip, body.locked #note { opacity:0 !important; }
-  body.locked #arrow { opacity:0 !important; }
-  #found .t1 { font-family:'Aref Ruqaa',serif; font-size:clamp(1.5rem,4.4vh,2.4rem);
+    gap:2.1vh; align-items:center; max-height:92vh; overflow-y:auto;
+    padding:5vh 0 4vh; -webkit-overflow-scrolling:touch; }
+  #fName { font-family:var(--f-display); font-size:clamp(1.45rem,4.2vh,2.3rem);
     color:var(--ivory); text-shadow:0 0 44px rgba(255,205,150,.4); }
-  #found .bd { font-size:clamp(.85rem,2.05vh,1.08rem); }
-  #found .msg { font-family:'Aref Ruqaa',serif; font-size:clamp(.95rem,2.35vh,1.3rem);
-    line-height:2.2; color:var(--ivory); text-shadow:0 2px 26px rgba(0,0,0,.95); }
+  #fFacts { font-family:var(--f-body); font-size:clamp(.82rem,1.95vh,1.02rem);
+    line-height:2.1; color:rgba(243,233,217,.78); }
+  #fFacts b { color:var(--ember); font-weight:400; }
+  #fLine { font-family:var(--f-display); font-size:clamp(.95rem,2.3vh,1.28rem);
+    line-height:2.15; color:var(--ivory); text-shadow:0 2px 26px rgba(0,0,0,.95); }
+  #fTrip { display:flex; flex-direction:column; gap:.7vh; }
+  #tripT { font-family:var(--f-body); font-size:clamp(.66rem,1.55vh,.82rem);
+    color:var(--faint); }
+  #tripV { font-family:var(--f-lat); direction:ltr; letter-spacing:.14em;
+    font-size:clamp(.78rem,1.9vh,1.02rem); color:var(--ember);
+    text-shadow:0 0 20px rgba(255,183,101,.55); }
+  #nextBtn { pointer-events:none; }
+  #found.on .box { pointer-events:auto; }
+  #found.on #nextBtn { pointer-events:auto; }
 
-  #note { position:fixed; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,0px) + 148px);
-    z-index:46; text-align:center; padding:0 8vw; font-family:'Amiri',serif;
-    font-size:clamp(.68rem,1.6vh,.84rem); color:var(--faint);
-    opacity:0; transition:opacity 1s ease; }
+  #note { position:fixed; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
+    z-index:46; text-align:center; padding:0 8vw; font-family:var(--f-body);
+    font-size:clamp(.7rem,1.6vh,.86rem); line-height:2; color:var(--dim);
+    text-shadow:0 1px 12px #000; opacity:0; transition:opacity 1s ease; }
   #note.on { opacity:1; }
+
+  @media (max-width:420px) {
+    #obV { font-size:clamp(.82rem,1.9vh,.96rem); }
+    #track b { width:8px; height:8px; } #track { gap:7px; }
+    #readL, #readR { font-size:9px; }
+    #found .box { gap:1.7vh; }
+    #fFacts { line-height:1.95; }
+    #fLine { line-height:2.0; font-size:clamp(.9rem,2.15vh,1.1rem); }
+  }
 </style>
 </head>
 <body>
@@ -145,8 +239,10 @@
     <div class="rule"></div>
     <div class="bd">فوقكِ الآن، في هذه اللحظة بالذات… نجمةٌ حقيقية تحرسكِ،<br>
       يصل ضوءُها إلى عينيكِ بعد رحلةٍ طويلة بدأت في ذات العام الذي وُلدتِ فيه.<br><br>
-      هذا المِرصد يعرف مكانَكِ ووقتَكِ، ويحسب أين تقف نجمتُكِ في سمائكِ أنتِ.<br>
-      اخرجي إلى مكانٍ ترينَ فيه السماء… وارفعي جوالكِ.</div>
+      وليست وحدها: عشرة أشياء حقيقية فوق رأسكِ الليلة — القمر بطَوره،
+      وكواكب، ونجوم، ومجرّة، ومَطر الشُّهب.<br>
+      هذا المِرصد يعرف مكانَكِ ووقتَكِ، ويحسب أين يقف كلٌّ منها في سمائكِ أنتِ.<br><br>
+      اخرجي إلى مكانٍ ترينَ فيه السماء… وارفعي جوالكِ ولُفّي به.</div>
     <div class="rule"></div>
     <div class="act" id="beginBtn">افتحي السماء</div>
     <div class="lat" id="openHint">Allow location &amp; motion</div>
@@ -155,32 +251,59 @@
 
 <div id="hud">
   <div id="band"><div id="bandInner"></div><div id="bandMark"></div></div>
-  <div id="say"></div>
+
+  <div id="objective">
+    <div id="obK">Target</div>
+    <div id="obV"></div>
+    <div id="track"></div>
+  </div>
+
   <div id="arrow"></div>
+
   <div id="ret">
     <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
       <circle cx="50" cy="50" r="30" opacity=".5"/>
       <circle cx="50" cy="50" r="41" opacity=".22"/>
       <path d="M50 4v16M50 80v16M4 50h16M80 50h16"/>
       <circle cx="50" cy="50" r="2.4" fill="currentColor" stroke="none"/>
+      <circle class="hold" cx="50" cy="50" r="41" stroke-width="2.4"/>
     </svg>
   </div>
+
+  <div id="prompt"></div>
   <div class="read" id="readL"></div>
   <div class="read" id="readR"></div>
-  <div id="trip"><div id="tripT">الضوء الذي يلمس عينكِ الآن ظلّ يركض نحوكِ</div><div id="tripV"></div></div>
+
+  <div id="tools">
+    <div class="tool" id="logBtn">سِجِلّ الرصد</div>
+    <div id="tally">
+      <span class="lat">Found</span>
+      <span id="foundCount">٠ / ١٠</span>
+    </div>
+  </div>
+</div>
+
+<div id="log">
+  <div class="lat">Tonight&nbsp;·&nbsp;Above You</div>
+  <div class="rule"></div>
+  <div id="logList"></div>
+  <div class="rule"></div>
+  <div class="act" id="logClose">أغلقي السِّجل</div>
 </div>
 
 <div class="layer" id="found">
   <div class="box">
-    <div class="lat">HD 219134 · Cassiopeia</div>
-    <div class="t1">وجدتِها.</div>
+    <div class="lat" id="fLat"></div>
+    <div id="fName"></div>
     <div class="rule"></div>
-    <div class="bd" id="foundFacts"></div>
+    <div id="fFacts"></div>
     <div class="rule"></div>
-    <div class="msg" id="foundMsg">كنتُ أؤمن دائماً أن في السماء نجمةً تشبهكِ في سطوعها…<br>
-      لكنني لم أكن أعلم أنّ ضوءها انطلق في ذات السنة التي جئتِ فيها لتضيئي دنيتي.<br>
-      كل ليلة، ارفعي رأسكِ، ستجدينها هناك تقف في سمائكِ حارسةً لكِ.<br><br>
-      كل عام وأنتِ قدري، ونوري الذي لا ينطفئ يا نُـورة.</div>
+    <div id="fLine"></div>
+    <div id="fTrip">
+      <div id="tripT">الضوء الذي يلمس عينكِ الآن ظلّ يركض نحوكِ</div>
+      <div id="tripV"></div>
+    </div>
+    <div class="act" id="nextBtn">الهدف التالي</div>
   </div>
 </div>
 

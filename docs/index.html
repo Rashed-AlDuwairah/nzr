@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='9' fill='%23ffcf8a'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;1,400&family=Aref+Ruqaa:wght@400;700&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;1,400&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
      No panels. No rounded boxes. No gradients that announce
@@ -15,6 +15,13 @@
      puts a title over a shot.
      ============================================================ */
   :root {
+    /* Aref Ruqaa is calligraphic — it belongs on big emotional lines only.
+       Amiri is a Naskh book face for literary passages.
+       IBM Plex Sans Arabic is drawn for screens and carries the interface. */
+    --f-display:'Aref Ruqaa', serif;
+    --f-body:   'Amiri', serif;
+    --f-ui:     'IBM Plex Sans Arabic', system-ui, sans-serif;
+    --f-lat:    'Cinzel', serif;
     --ink:    #05060b;
     --ivory:  #f3e9d9;
     --dim:    rgba(243,233,217,.52);
@@ -23,6 +30,8 @@
     --star:   #d9e4ff;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
+  /* letter-spacing fragments joined Arabic letterforms — never inherit it */
+  [lang="ar"], [dir="rtl"] { letter-spacing:0; }
   html, body {
     width:100%; height:100%;
     overflow:hidden; background:#000;
@@ -138,7 +147,7 @@
     display:flex; flex-direction:column; align-items:center; gap:1.1vh;
     pointer-events:none; opacity:0; transition:opacity 1.8s ease; }
   #hint.on { opacity:1; }
-  #hint span { font-family:'Amiri', serif; font-size:clamp(.7rem,1.6vh,.85rem); color:var(--faint); }
+  #hint span { font-family:var(--f-ui); font-weight:300; font-size:clamp(.76rem,1.75vh,.94rem); color:var(--faint); }
   #hint i { width:1px; height:38px; display:block;
     background:linear-gradient(to bottom, rgba(255,197,130,.7), transparent);
     animation:fall 2.4s cubic-bezier(.4,0,.2,1) infinite; }
@@ -174,14 +183,14 @@
     flex-direction:column; gap:2.6vh; align-items:center; }
   .si-title { font-family:'Aref Ruqaa', serif; font-size:clamp(1.05rem,2.8vh,1.6rem);
     color:var(--ivory); }
-  .si-body { font-family:'Amiri', serif; font-size:clamp(.85rem,2.1vh,1.15rem);
+  .si-body { font-family:var(--f-body); font-size:clamp(.92rem,2.25vh,1.24rem);
     line-height:2.2; color:rgba(243,233,217,.82); }
-  .si-hints { font-family:'Amiri', serif; font-size:clamp(.68rem,1.6vh,.85rem);
+  .si-hints { font-family:var(--f-ui); font-weight:300; font-size:clamp(.74rem,1.75vh,.92rem);
     line-height:2; color:var(--faint); }
   /* a hidden layer must never steal a click: the parent turns them on */
   #siStart, #tutNext, #memClose {
     pointer-events:none; cursor:pointer; position:relative;
-    font-family:'Aref Ruqaa', serif; font-size:clamp(.9rem,2.1vh,1.1rem);
+    font-family:var(--f-ui); font-weight:500; font-size:clamp(.95rem,2.2vh,1.16rem);
     color:var(--ivory); padding-bottom:.5rem; }
   #skyIntro.on #siStart, #tut.on #tutNext, #memCard.on #memClose { pointer-events:auto; }
   #siStart::after, #tutNext::after, #memClose::after {
@@ -193,23 +202,71 @@
   #labels { position:fixed; inset:0; z-index:15; pointer-events:none; }
   .starLabel { position:absolute; top:0; left:0; margin-left:-3em; width:6em;
     text-align:center; white-space:nowrap;
-    font-family:'Amiri', serif; font-size:clamp(.6rem,1.5vh,.78rem);
+    font-family:var(--f-ui); font-weight:300; font-size:clamp(.64rem,1.6vh,.82rem);
     color:rgba(217,228,255,.72); text-shadow:0 1px 10px #000;
     opacity:0; transition:opacity .6s ease; }
   .starLabel.jup { color:rgba(255,205,150,.75); }
 
-  /* ---------- the instrument row: no chips, no pills ---------- */
-  #skyHud { position:fixed; left:max(20px, env(safe-area-inset-left));
-    bottom:calc(6.5vh + 14px + env(safe-area-inset-bottom, 0px)); z-index:26;
-    display:none; align-items:center; gap:20px; }
-  body.skyPlay #skyHud { display:flex; }
-  #memCount { display:flex; align-items:center; gap:7px; }
-  #memCount b { width:7px; height:7px; display:block; background:rgba(243,233,217,.42);
+  /* ============================================================
+     The heads-up display, built the way a game builds one:
+     persistent state anchored top-left, temporary prompts at
+     bottom-centre, tools out of the way, and a scrim under each
+     band so nothing dissolves against a bright patch of sky.
+     Corners are read peripherally, so they speak in shape and
+     contrast rather than fine type.
+     ============================================================ */
+  #skyHud { position:fixed; inset:0; z-index:26; display:none; pointer-events:none; }
+  body.skyPlay #skyHud { display:block; }
+  #skyHud::before { content:''; position:absolute; left:0; right:0; top:0; height:26vh;
+    background:linear-gradient(to bottom, rgba(2,3,8,.72), transparent); }
+  #skyHud::after { content:''; position:absolute; left:0; right:0; bottom:0; height:26vh;
+    background:linear-gradient(to top, rgba(2,3,8,.78), transparent); }
+
+  /* --- the objective, anchored where the eye starts --- */
+  #objective { position:absolute; top:calc(6.5vh + 16px + env(safe-area-inset-top,0px));
+    right:max(20px, env(safe-area-inset-right)); text-align:right;
+    display:flex; flex-direction:column; gap:.7vh; }
+  #obK { font-family:var(--f-lat); font-size:clamp(.5rem,1.2vh,.62rem);
+    letter-spacing:.34em; direction:ltr; color:var(--faint); }
+  #obV { font-family:var(--f-ui); font-weight:500;
+    font-size:clamp(.86rem,2vh,1.06rem); color:var(--ivory);
+    text-shadow:0 1px 12px #000; transition:opacity .5s ease; }
+  #obV.swap { opacity:0; }
+
+  /* --- the quest track: seven marks on a thread of light --- */
+  #track { position:relative; display:flex; align-items:center; gap:10px;
+    flex-direction:row-reverse; margin-top:.4vh; }
+  #track::before { content:''; position:absolute; right:3px; left:3px; top:50%;
+    height:1px; background:rgba(243,233,217,.16); }
+  #track b { position:relative; width:9px; height:9px; display:block;
+    background:rgba(243,233,217,.34);
     clip-path:polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
-    transition:background .8s ease, transform .8s ease, filter .8s ease; }
-  #memCount b.lit { background:var(--ember); transform:scale(1.55);
-    filter:drop-shadow(0 0 6px rgba(255,183,101,.95)); }
-  #wishCount { font-family:'Amiri', serif; font-size:clamp(.68rem,1.6vh,.82rem);
+    transition:background .7s ease, transform .7s cubic-bezier(.2,1.6,.4,1), filter .7s ease; }
+  #track b.lit { background:var(--ember); transform:scale(1.5);
+    filter:drop-shadow(0 0 8px rgba(255,183,101,.95)); }
+  #track b.pop { animation:markPop 1s cubic-bezier(.2,1.7,.35,1); }
+  @keyframes markPop { 0%{transform:scale(1);} 32%{transform:scale(3.1); filter:drop-shadow(0 0 22px rgba(255,200,130,1));}
+    100%{transform:scale(1.5);} }
+  #track b.next { animation:markWait 2.4s ease-in-out infinite; }
+  @keyframes markWait { 0%,100%{background:rgba(243,233,217,.34);} 50%{background:rgba(255,183,101,.6);} }
+
+  /* --- the contextual prompt, where a game puts its prompts --- */
+  #prompt { position:absolute; left:0; right:0;
+    bottom:calc(6.5vh + 58px + env(safe-area-inset-bottom,0px));
+    text-align:center; padding:0 8vw;
+    font-family:var(--f-ui); font-weight:400;
+    font-size:clamp(.84rem,2vh,1.06rem); line-height:1.9;
+    color:var(--ivory); text-shadow:0 1px 14px #000, 0 0 34px rgba(0,0,0,.9);
+    opacity:0; transition:opacity .7s ease; }
+  #prompt.on { opacity:1; }
+  #prompt em { font-style:normal; color:var(--ember); }
+
+  /* --- tools and tally, kept low and quiet --- */
+  #tools { position:absolute; left:max(20px, env(safe-area-inset-left));
+    bottom:calc(6.5vh + 14px + env(safe-area-inset-bottom,0px));
+    display:flex; align-items:center; gap:18px; pointer-events:auto; }
+  #wishCount { display:flex; align-items:center; gap:6px;
+    font-family:var(--f-ui); font-weight:400; font-size:clamp(.74rem,1.7vh,.88rem);
     color:var(--dim); text-shadow:0 1px 8px #000; display:flex; align-items:center; gap:6px; }
   #wishCount svg { width:13px; height:13px; opacity:.75; }
   #gyroBtn, #helpBtn { border:0; background:none; padding:0; cursor:pointer;
@@ -222,10 +279,19 @@
   /* ---------- guidance ---------- */
   #whisper { position:fixed; top:calc(6.5vh + 22px); left:50%; transform:translateX(-50%);
     z-index:26; max-width:82vw; text-align:center; line-height:2;
-    font-family:'Amiri', serif; font-size:clamp(.76rem,1.85vh,1rem);
-    color:rgba(243,233,217,.78); text-shadow:0 1px 14px #000, 0 0 30px rgba(0,0,0,.9);
+    font-family:var(--f-ui); font-weight:300; font-size:clamp(.84rem,2vh,1.08rem);
+    color:rgba(243,233,217,.82); text-shadow:0 1px 14px #000, 0 0 30px rgba(0,0,0,.9);
     opacity:0; transition:opacity 1.6s ease; pointer-events:none; }
   #whisper.on { opacity:1; }
+  /* on a narrow screen the objective owns the top corner, so the
+     narration steps down below it instead of colliding with it */
+  @media (max-width: 720px) {
+    #whisper { top:calc(6.5vh + 96px); max-width:88vw; }
+    #obK { font-size:.5rem; }
+    #obV { font-size:clamp(.78rem,1.85vh,.94rem); }
+    #track b { width:8px; height:8px; }
+    #track { gap:8px; }
+  }
 
   #guideArrow { position:fixed; z-index:26; left:0; top:0; width:16px; height:16px;
     pointer-events:none; opacity:0; transition:opacity .5s ease; will-change:transform;
@@ -244,7 +310,7 @@
 
   #wishToast { position:fixed; top:calc(6.5vh + 66px); left:50%;
     transform:translateX(-50%); z-index:27;
-    font-family:'Aref Ruqaa', serif; font-size:clamp(.8rem,1.9vh,1rem);
+    font-family:var(--f-ui); font-weight:500; font-size:clamp(.8rem,1.9vh,1rem);
     color:var(--ember); text-shadow:0 0 22px rgba(255,183,101,.85);
     opacity:0; pointer-events:none; }
   #wishToast.on { animation:toast 2.6s ease forwards; }
@@ -261,7 +327,7 @@
     font-size:clamp(.55rem,1.3vh,.7rem); color:var(--faint); }
   #tutIcon { width:clamp(38px, 7vh, 56px); height:clamp(38px, 7vh, 56px); color:var(--ember); }
   #tutIcon svg { width:100%; height:100%; }
-  #tutText { font-family:'Amiri', serif; font-size:clamp(.88rem,2.1vh,1.2rem);
+  #tutText { font-family:var(--f-ui); font-weight:300; font-size:clamp(.94rem,2.25vh,1.28rem);
     line-height:2.25; color:var(--ivory); white-space:pre-line; }
 
   /* ---------- what a station gives back ---------- */
@@ -272,12 +338,12 @@
     max-height:86vh; overflow-y:auto; }
   #stName { font-family:'Aref Ruqaa', serif; font-size:clamp(1.05rem,2.8vh,1.6rem);
     color:var(--ivory); }
-  #stFact { font-family:'Amiri', serif; font-size:clamp(.7rem,1.7vh,.9rem);
+  #stFact { font-family:var(--f-ui); font-weight:300; font-size:clamp(.78rem,1.8vh,.98rem);
     line-height:1.95; color:rgba(217,228,255,.62); }
   #stPersonal { font-family:'Aref Ruqaa', serif; font-size:clamp(.9rem,2.2vh,1.24rem);
     line-height:2.15; color:var(--ivory); }
   #stReasons { display:flex; flex-direction:column; gap:1.5vh;
-    font-family:'Amiri', serif; font-size:clamp(.78rem,1.85vh,1rem);
+    font-family:var(--f-body); font-size:clamp(.85rem,2vh,1.08rem);
     line-height:1.95; color:rgba(243,233,217,.78); }
   #stReasons div { position:relative; padding-top:1.4vh; }
   #stReasons div::before { content:''; position:absolute; top:0; left:50%;
@@ -292,7 +358,7 @@
   #lightPhoto.on { opacity:1; }
   .lp-box { display:flex; flex-direction:column; align-items:center;
     gap:3vh; text-align:center; width:min(56ch, 86vw); }
-  .lp-t1 { font-family:'Amiri', serif; font-size:clamp(.72rem,1.75vh,.95rem);
+  .lp-t1 { font-family:var(--f-ui); font-weight:300; font-size:clamp(.78rem,1.85vh,1rem);
     color:rgba(255,205,150,.72); text-shadow:0 1px 14px #000; }
   #usPhoto { width:clamp(200px, 40vh, 400px); max-width:84vw;
     filter:grayscale(.1) contrast(1.03);
@@ -305,7 +371,7 @@
 
   #fallback { position:fixed; inset:0; z-index:100; display:none;
     align-items:center; justify-content:center; text-align:center;
-    color:var(--dim); font-family:'Amiri',serif; font-size:1.1rem;
+    color:var(--dim); font-family:var(--f-ui); font-size:1.1rem;
     line-height:2.4; padding:0 10vw; background:var(--ink); }
 </style>
 </head>
@@ -419,7 +485,13 @@
 <div id="guideArrow"></div>
 
 <div id="skyHud">
-  <span id="memCount"><b></b><b></b><b></b><b></b><b></b><b></b><b></b></span>
+  <div id="objective">
+    <div id="obK">Objective</div>
+    <div id="obV"></div>
+    <div id="track"><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+  </div>
+  <div id="prompt"></div>
+  <div id="tools">
   <span id="wishCount">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
       <path d="M3 20L13 10"/><circle cx="15.6" cy="7.4" r="2.6" fill="currentColor" fill-opacity=".35"/>
@@ -437,6 +509,7 @@
       <circle cx="12" cy="12" r="8.4"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3 2.4v1.6"/><path d="M12.6 16.6h-.02"/>
     </svg>
   </button>
+  </div>
 </div>
 
 <div id="wishToast">أُمنية التُقِطَت</div>

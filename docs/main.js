@@ -847,49 +847,96 @@ const lookCurve = new THREE.CatmullRomCurve3([
 ], false, 'catmullrom', 0.35);
 
 // ---------------------------------------------------------- audio
+// ---------------------------------------------------------- audio
+// A slow score in F major that breathes rather than beeps: a sub bass on
+// the root, a filtered pad with real voice leading, a pentatonic melody
+// that cannot play a wrong note, and bells thrown into a long hall.
+// If a file lives at ./music.mp3 it takes over and the synth stands down.
 const AudioEngine = {
-  ctx: null, master: null, padBus: null, muted: false, started: false,
-  padOsc: [], rumble: null, rumbleGain: null, lp: null, chordIdx: 0,
+  ctx: null, master: null, muted: false, started: false,
+  usingTrack: false, track: null,
+
+  // F – C/E – Dm – Bb : the progression that always aches a little
   chords: [
-    [41, 48, 57, 60, 64],   // F maj add9
-    [36, 48, 55, 62, 64],   // C add9
-    [33, 45, 55, 60, 64],   // A min 7
-    [38, 50, 57, 62, 65],   // D min 9
+    { bass: 29, pad: [53, 57, 60, 65], name: 'F'  },   // F2  F A C F
+    { bass: 28, pad: [52, 55, 60, 64], name: 'C/E'},   // E2  E G C E
+    { bass: 26, pad: [50, 57, 62, 65], name: 'Dm' },   // D2  D A D F
+    { bass: 34, pad: [50, 53, 58, 62], name: 'Bb' },   // Bb1 D F Bb D
   ],
+  scale: [72, 74, 77, 79, 81, 84, 86, 89, 91],         // F major pentatonic, up where it sings
+  bar: 8.0,                                            // seconds per chord
+  barIdx: 0,
+
   midi(n) { return 440 * Math.pow(2, (n - 69) / 12); },
+
   start() {
     if (this.started) return;
     this.started = true;
     const C = new (window.AudioContext || window.webkitAudioContext)();
     this.ctx = C;
+
     this.master = C.createGain();
     this.master.gain.value = 0;
     this.master.connect(C.destination);
-    this.master.gain.linearRampToValueAtTime(0.75, C.currentTime + 5);
+    this.master.gain.linearRampToValueAtTime(0.85, C.currentTime + 6);
 
-    // soft hall
+    // a long, soft hall
     const conv = C.createConvolver();
-    const len = C.sampleRate * 3.4;
+    const len = (C.sampleRate * 5.5) | 0;
     const ir = C.createBuffer(2, len, C.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
       const d = ir.getChannelData(ch);
-      for (let i = 0; i < len; i++)
-        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        // a little pre-delay, then a smooth exponential tail
+        const env = t < 0.012 ? t / 0.012 : Math.pow(1 - t, 2.6);
+        d[i] = (Math.random() * 2 - 1) * env * (1 - t * 0.35);
+      }
     }
     conv.buffer = ir;
-    const wet = C.createGain(); wet.gain.value = 0.55;
-    conv.connect(wet).connect(this.master);
+    this.wet = C.createGain(); this.wet.gain.value = 0.5;
+    conv.connect(this.wet).connect(this.master);
+    this.reverb = conv;
 
-    this.lp = C.createBiquadFilter();
-    this.lp.type = 'lowpass'; this.lp.frequency.value = 750; this.lp.Q.value = 0.4;
-    this.padBus = C.createGain(); this.padBus.gain.value = 0.16;
-    this.padBus.connect(this.lp);
-    this.lp.connect(this.master); this.lp.connect(conv);
+    // a slow echo that keeps the melody company
+    const dl = C.createDelay(2.0);
+    dl.delayTime.value = 0.66;
+    const fb = C.createGain(); fb.gain.value = 0.36;
+    const dlLp = C.createBiquadFilter();
+    dlLp.type = 'lowpass'; dlLp.frequency.value = 2200;
+    dl.connect(dlLp).connect(fb).connect(dl);
+    const dlOut = C.createGain(); dlOut.gain.value = 0.45;
+    dl.connect(dlOut).connect(this.master);
+    dl.connect(conv);
+    this.delay = dl;
 
-    this.sparkBus = C.createGain(); this.sparkBus.gain.value = 0.10;
-    this.sparkBus.connect(conv); this.sparkBus.connect(this.master);
+    // buses
+    this.padBus  = C.createGain(); this.padBus.gain.value  = 0.34;
+    this.bassBus = C.createGain(); this.bassBus.gain.value = 0.26;
+    this.melBus  = C.createGain(); this.melBus.gain.value  = 0.30;
+    this.sparkBus = C.createGain(); this.sparkBus.gain.value = 0.20;
 
-    // rumble for the fall
+    this.padLp = C.createBiquadFilter();
+    this.padLp.type = 'lowpass'; this.padLp.frequency.value = 1150; this.padLp.Q.value = 0.5;
+    this.padBus.connect(this.padLp);
+    this.padLp.connect(this.master); this.padLp.connect(conv);
+
+    const bassLp = C.createBiquadFilter();
+    bassLp.type = 'lowpass'; bassLp.frequency.value = 220;
+    this.bassBus.connect(bassLp).connect(this.master);
+
+    this.melBus.connect(this.master); this.melBus.connect(conv); this.melBus.connect(dl);
+    this.sparkBus.connect(conv); this.sparkBus.connect(dl);
+    this.sparkBus.connect(this.master);
+
+    // the pad breathes: a slow sweep across the filter
+    const breath = C.createOscillator();
+    breath.frequency.value = 0.045;
+    const breathAmt = C.createGain(); breathAmt.gain.value = 340;
+    breath.connect(breathAmt).connect(this.padLp.frequency);
+    breath.start();
+
+    // rumble, kept for the fall and the wormhole
     const nb = C.createBuffer(1, C.sampleRate * 2, C.sampleRate);
     const nd = nb.getChannelData(0);
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
@@ -900,69 +947,140 @@ const AudioEngine = {
     this.rumble.connect(rlp).connect(this.rumbleGain).connect(this.master);
     this.rumble.start();
 
-    this.playChord(this.chords[0], 6);
-    this.chordTimer = setInterval(() => {
-      if (C.state !== 'running') return;
-      this.chordIdx = (this.chordIdx + 1) % this.chords.length;
-      this.playChord(this.chords[this.chordIdx], 7);
-    }, 13000);
-    this.sparkTimer = setInterval(() => {
-      if (C.state !== 'running' || Math.random() < 0.35) return;
-      this.pluck();
-    }, 5200);
+    // if he dropped a real track in, hand the night over to it
+    this.tryTrack();
+
+    this.nextBarAt = C.currentTime + 0.2;
+    this.scheduler = setInterval(() => this.tick(), 250);
   },
-  playChord(midis, dur) {
-    const C = this.ctx, t = C.currentTime;
-    // release old voices
-    for (const { g } of this.padOsc) {
-      g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.linearRampToValueAtTime(0, t + 6);
+
+  // ---- a real song, if one is provided
+  async tryTrack() {
+    try {
+      const res = await fetch('./music.mp3', { cache: 'force-cache' });
+      if (!res.ok) return;
+      const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const g = this.ctx.createGain(); g.gain.value = 0;
+      src.connect(g).connect(this.master);
+      src.start();
+      g.gain.linearRampToValueAtTime(0.9, this.ctx.currentTime + 4);
+      this.track = g;
+      this.usingTrack = true;
+      // fade the synth out from under it
+      for (const b of [this.padBus, this.bassBus, this.melBus, this.sparkBus])
+        b.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 4);
+    } catch (_) { /* no track: the synth keeps playing */ }
+  },
+
+  tick() {
+    const C = this.ctx;
+    if (!C || C.state !== 'running' || this.usingTrack) return;
+    while (this.nextBarAt < C.currentTime + 1.5) {
+      this.playBar(this.nextBarAt, this.chords[this.barIdx % this.chords.length]);
+      this.barIdx++;
+      this.nextBarAt += this.bar;
     }
-    const old = this.padOsc;
-    setTimeout(() => old.forEach(({ o }) => { try { o.stop(); } catch (_) {} }), 7000);
-    this.padOsc = [];
-    for (const m of midis) {
-      for (const det of [-4, 3]) {
-        const o = C.createOscillator();
-        o.type = 'sine';
-        o.frequency.value = this.midi(m);
-        o.detune.value = det;
-        const g = C.createGain();
-        g.gain.value = 0;
-        g.gain.linearRampToValueAtTime(0.8 / midis.length, t + dur * 0.55);
-        o.connect(g).connect(this.padBus);
-        o.start();
-        this.padOsc.push({ o, g });
+  },
+
+  playBar(t, chord) {
+    const C = this.ctx, B = this.bar;
+
+    // ---- sub bass: one long root, swelling and receding
+    this.voice({
+      type: 'sine', freq: this.midi(chord.bass), bus: this.bassBus,
+      t, attack: 1.6, hold: B * 0.45, release: B * 0.5, peak: 0.9, detune: 0,
+    });
+    this.voice({
+      type: 'sine', freq: this.midi(chord.bass + 12), bus: this.bassBus,
+      t, attack: 2.0, hold: B * 0.4, release: B * 0.5, peak: 0.35, detune: 4,
+    });
+
+    // ---- pad: each voice enters a beat apart so the chord unfolds
+    chord.pad.forEach((n, i) => {
+      for (const det of [-6, 5]) {
+        this.voice({
+          type: 'triangle', freq: this.midi(n), bus: this.padBus,
+          t: t + i * 0.28, attack: 2.4, hold: B * 0.3, release: B * 0.55,
+          peak: 0.55 / chord.pad.length, detune: det,
+        });
       }
+    });
+
+    // ---- melody: one long breath per bar, never a wrong note
+    if (this.barIdx % 2 === 0 || Math.random() < 0.7) {
+      const n = this.scale[(Math.random() * this.scale.length) | 0];
+      const dur = 2.4 + Math.random() * 2.6;
+      this.voice({
+        type: 'sine', freq: this.midi(n), bus: this.melBus,
+        t: t + 0.6 + Math.random() * 1.4, attack: 0.9, hold: dur * 0.4,
+        release: dur * 0.7, peak: 0.85, detune: 0, vibrato: true,
+      });
+    }
+
+    // ---- a bell, thrown into the hall
+    if (Math.random() < 0.55) {
+      const n = this.scale[3 + ((Math.random() * 6) | 0)] + 12;
+      this.bell(t + 1.2 + Math.random() * (B - 2), this.midi(n));
     }
   },
-  pluck() {
-    const C = this.ctx, t = C.currentTime;
-    const scale = [72, 74, 76, 79, 81, 84, 88];
+
+  voice({ type, freq, bus, t, attack, hold, release, peak, detune, vibrato }) {
+    const C = this.ctx;
     const o = C.createOscillator();
-    o.type = 'sine';
-    o.frequency.value = this.midi(scale[(Math.random() * scale.length) | 0]);
+    o.type = type; o.frequency.value = freq; o.detune.value = detune || 0;
     const g = C.createGain();
-    g.gain.setValueAtTime(0.0, t);
-    g.gain.linearRampToValueAtTime(0.5, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
-    o.connect(g).connect(this.sparkBus);
-    o.start(); o.stop(t + 2.8);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + attack);
+    g.gain.setValueAtTime(Math.max(0.0002, peak), t + attack + hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + hold + release);
+    if (vibrato) {
+      const lfo = C.createOscillator(); lfo.frequency.value = 4.6;
+      const amt = C.createGain(); amt.gain.value = 3.2;
+      lfo.connect(amt).connect(o.detune);
+      lfo.start(t); lfo.stop(t + attack + hold + release + 0.2);
+    }
+    o.connect(g).connect(bus);
+    o.start(t);
+    o.stop(t + attack + hold + release + 0.2);
   },
+
+  bell(t, freq) {
+    const C = this.ctx;
+    const o = C.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const o2 = C.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 2.01;
+    const o3 = C.createOscillator(); o3.type = 'sine'; o3.frequency.value = freq * 3.02;
+    const g = C.createGain(), g2 = C.createGain(), g3 = C.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.6, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 4.2);
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.exponentialRampToValueAtTime(0.18, t + 0.008);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    g3.gain.setValueAtTime(0.0001, t);
+    g3.gain.exponentialRampToValueAtTime(0.07, t + 0.006);
+    g3.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g).connect(this.sparkBus);
+    o2.connect(g2).connect(this.sparkBus);
+    o3.connect(g3).connect(this.sparkBus);
+    o.start(t); o.stop(t + 4.4);
+    o2.start(t); o2.stop(t + 1.8);
+    o3.start(t); o3.stop(t + 1.0);
+  },
+
+  // the guidance chime as her light nears a waiting star
   shimmer(v) {
-    // guidance chime: swells as the light lens nears the waiting star
     if (!this.ctx) return;
     if (!this._sh) {
       const C = this.ctx;
       const g = C.createGain(); g.gain.value = 0;
-      const o1 = C.createOscillator(); o1.type = 'sine'; o1.frequency.value = 1244.5; // D#6
-      const o2 = C.createOscillator(); o2.type = 'sine'; o2.frequency.value = 1868.0; // A#6
-      const g2 = C.createGain(); g2.gain.value = 0.35;
-      const lfo = C.createOscillator(); lfo.frequency.value = 5.2;
+      const o1 = C.createOscillator(); o1.type = 'sine'; o1.frequency.value = 1174.7;
+      const o2 = C.createOscillator(); o2.type = 'sine'; o2.frequency.value = 1760.0;
+      const g2 = C.createGain(); g2.gain.value = 0.3;
+      const lfo = C.createOscillator(); lfo.frequency.value = 5.0;
       const lfoG = C.createGain(); lfoG.gain.value = 0.02;
-      lfo.connect(lfoG);
-      lfoG.connect(g.gain);
+      lfo.connect(lfoG).connect(g.gain);
       o1.connect(g); o2.connect(g2).connect(g);
       g.connect(this.sparkBus);
       o1.start(); o2.start(); lfo.start();
@@ -970,18 +1088,31 @@ const AudioEngine = {
     }
     this._sh.gain.setTargetAtTime(v * 0.05, this.ctx.currentTime, 0.15);
   },
+
+  pluck() {   // the sound a station makes when its light completes
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.bell(t, this.midi(89));
+    this.bell(t + 0.10, this.midi(93));
+    this.bell(t + 0.22, this.midi(96));
+  },
+
   setRumble(v) {
     if (!this.rumbleGain) return;
     this.rumbleGain.gain.setTargetAtTime(v * 0.5, this.ctx.currentTime, 0.12);
   },
+
+  // the night opens up as the finale warms
   warm(v) {
-    if (!this.lp) return;
-    this.lp.frequency.setTargetAtTime(750 + v * 900, this.ctx.currentTime, 1.5);
+    if (!this.padLp) return;
+    this.padLp.frequency.setTargetAtTime(1150 + v * 1400, this.ctx.currentTime, 1.5);
+    if (this.wet) this.wet.gain.setTargetAtTime(0.5 + v * 0.25, this.ctx.currentTime, 1.5);
   },
+
   toggleMute() {
     if (!this.ctx) return;
     this.muted = !this.muted;
-    this.master.gain.setTargetAtTime(this.muted ? 0 : 0.75, this.ctx.currentTime, 0.4);
+    this.master.gain.setTargetAtTime(this.muted ? 0 : 0.85, this.ctx.currentTime, 0.4);
     return this.muted;
   },
 };
@@ -990,6 +1121,7 @@ const AudioEngine = {
 const skyNight = new SkyNight(scene, camera);
 skyNight.audio = AudioEngine;
 window.__SKY = skyNight;
+window.__AE = AudioEngine;
 const journeyGroups = [sky, starsFar, starsNear, dust, nebulaGroup, planetGroup, homeGroup, meteorGroup, textGroup];
 let skyLoadStarted = false;
 

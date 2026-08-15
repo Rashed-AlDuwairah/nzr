@@ -719,3 +719,180 @@ export function buildWormhole() {
 
   return group;
 }
+
+// ------------------------------------------------------------------
+//  الأرض — seen from far enough away that Riyadh is a spark on it
+//
+//  Not a photograph: continents are carved out of noise, the night side
+//  carries city light, and a thin shell of atmosphere catches the sun
+//  around the limb. A marker glows wherever she happens to be standing.
+// ------------------------------------------------------------------
+export function buildEarth() {
+  const g = new THREE.Group();
+  const R = 60;
+
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 64),
+    new THREE.ShaderMaterial({
+      uniforms: {
+        uSun:  { value: new THREE.Vector3(1, 0.25, 0.6).normalize() },
+        uMark: { value: new THREE.Vector3(0, 0, 1) },   // her, in globe space
+        uTime: { value: 0 },
+      },
+      vertexShader: /* glsl */`
+        varying vec3 vN, vP;
+        void main(){
+          vN = normalize(normal); vP = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */`
+        uniform vec3 uSun, uMark; uniform float uTime;
+        varying vec3 vN, vP;
+        float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+        float n3(vec3 p){
+          vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(h(i), h(i+vec3(1,0,0)), f.x), mix(h(i+vec3(0,1,0)), h(i+vec3(1,1,0)), f.x), f.y),
+                     mix(mix(h(i+vec3(0,0,1)), h(i+vec3(1,0,1)), f.x), mix(h(i+vec3(0,1,1)), h(i+vec3(1,1,1)), f.x), f.y), f.z);
+        }
+        float fbm(vec3 p){ float v = 0.0, a = 0.5;
+          for (int i = 0; i < 6; i++){ v += a * n3(p); p *= 2.03; a *= 0.5; } return v; }
+        void main(){
+          vec3 N = normalize(vN);
+          float land = fbm(N * 2.1 + 4.0);
+          float coast = smoothstep(0.50, 0.545, land);
+          float ice = smoothstep(0.80, 0.96, abs(N.y));
+          vec3 sea  = mix(vec3(0.03,0.10,0.26), vec3(0.06,0.20,0.40), fbm(N * 6.0));
+          vec3 soil = mix(vec3(0.22,0.24,0.14), vec3(0.42,0.34,0.20), fbm(N * 9.0 + 2.0));
+          vec3 base = mix(sea, soil, coast);
+          base = mix(base, vec3(0.82,0.86,0.92), ice * coast * 0.8 + ice * 0.35);
+
+          float lambert = dot(N, normalize(uSun));
+          float day = smoothstep(-0.12, 0.30, lambert);
+
+          // the dark half is not black: it is lit from below by us
+          float cities = pow(fbm(N * 26.0 + 9.0), 4.0) * coast * (1.0 - ice);
+          cities *= 0.55 + 0.45 * sin(uTime * 2.0 + land * 60.0);
+          vec3 night = vec3(1.0, 0.66, 0.30) * cities * 2.6;
+
+          // and where she stands, one deliberate ember
+          float d = distance(N, normalize(uMark));
+          float me = exp(-d * d * 260.0);
+          night += vec3(1.0, 0.74, 0.42) * me * (2.2 + sin(uTime * 3.0) * 0.7);
+
+          vec3 col = base * (0.045 + day * 1.7) + night * (1.0 - day);
+          // a sun-glint on the water and a rim of air
+          float rim = pow(1.0 - abs(dot(N, vec3(0.0, 0.0, 1.0))), 3.0);
+          col += vec3(0.25, 0.45, 0.85) * rim * (0.25 + day * 0.55);
+          gl_FragColor = vec4(col, 1.0);
+        }`
+    }));
+  g.add(globe);
+
+  // the atmosphere, a shell slightly larger than the world
+  const air = new THREE.Mesh(new THREE.SphereGeometry(R * 1.055, 64, 40),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uSun: { value: new THREE.Vector3(1, 0.25, 0.6).normalize() } },
+      vertexShader: `varying vec3 vN, vW;
+        void main(){ vN = normalize(normal);
+          vW = normalize((modelViewMatrix * vec4(position,1.0)).xyz);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `uniform vec3 uSun; varying vec3 vN, vW;
+        void main(){
+          float f = pow(clamp(1.0 + dot(vW, normalize(vN)), 0.0, 1.0), 2.6);
+          float s = smoothstep(-0.5, 0.6, dot(normalize(vN), normalize(uSun)));
+          vec3 c = mix(vec3(0.12,0.28,0.62), vec3(0.55,0.72,1.0), s);
+          gl_FragColor = vec4(c, f * (0.22 + s * 0.66));
+        }`
+    }));
+  g.add(air);
+
+  g.userData = { globe, air, R };
+  return g;
+}
+
+// ------------------------------------------------------------------
+//  المرصد — the dome she walks into
+//
+//  A drum, a hemisphere, and one shutter cut out of it, standing on a
+//  low plinth. The seam glows the same ember as the rest of her sky.
+// ------------------------------------------------------------------
+export function buildObservatory() {
+  const g = new THREE.Group();
+  const shell = new THREE.MeshStandardMaterial({
+    color: 0x1b2030, roughness: 0.68, metalness: 0.3,
+    emissive: 0x0b0e18, emissiveIntensity: 1.0,
+  });
+  const trim = new THREE.MeshStandardMaterial({
+    color: 0xffb765, emissive: 0xffb765, emissiveIntensity: 2.4,
+    roughness: 0.4, metalness: 0.1,
+  });
+
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.6, 0.34, 48), shell);
+  plinth.position.y = 0.17; g.add(plinth);
+
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 1.55, 48, 1, true), shell);
+  drum.position.y = 1.11; g.add(drum);
+
+  // the ring where the dome turns on the drum
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(2.02, 0.035, 10, 64), trim);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 1.88; g.add(ring);
+
+  // the dome, with a wedge left out for the shutter
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(2.0, 56, 28, 0.30, Math.PI * 2 - 0.60, 0, Math.PI / 2), shell);
+  dome.position.y = 1.88; g.add(dome);
+
+  // the slit itself: what the telescope looks through
+  const slit = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 1.9),
+    new THREE.MeshBasicMaterial({ color: 0x0a0d16, side: THREE.DoubleSide }));
+  slit.position.set(0, 2.42, 1.63); slit.rotation.x = -0.46; g.add(slit);
+
+  // the telescope tube leaning out of it
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.26, 2.5, 24), shell);
+  tube.position.set(0, 2.45, 0.75); tube.rotation.x = 1.05; g.add(tube);
+
+  // a lit doorway, so it reads as a place you can walk into: bright at the
+  // threshold and falling off upwards, the way a real doorway looks at night
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 1.12),
+    new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false,
+      vertexShader: `varying vec2 v; void main(){ v = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `varying vec2 v;
+        void main(){
+          float up = smoothstep(1.0, 0.05, v.y);
+          float side = smoothstep(0.0, 0.16, v.x) * smoothstep(1.0, 0.84, v.x);
+          vec3 c = mix(vec3(1.0,0.72,0.36), vec3(1.0,0.90,0.72), up);
+          gl_FragColor = vec4(c, (0.30 + up * 0.62) * side);
+        }`
+    }));
+  door.position.set(0, 0.90, 2.005); g.add(door);
+  const spill = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.6),
+    new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: `varying vec2 v; void main(){ v = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `varying vec2 v;
+        void main(){
+          float d = smoothstep(1.0, 0.0, v.y);
+          float w = smoothstep(0.0, 0.34, v.x) * smoothstep(1.0, 0.66, v.x);
+          gl_FragColor = vec4(vec3(1.0,0.70,0.34), d * w * 0.20);
+        }`
+    }));
+  spill.rotation.x = -Math.PI / 2; spill.position.set(0, 0.015, 3.1); g.add(spill);
+
+  // windows around the drum
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.2;
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.34),
+      new THREE.MeshBasicMaterial({ color: 0xffd8a0, transparent: true,
+        opacity: 0.30 + Math.random() * 0.45 }));
+    w.position.set(Math.sin(a) * 2.01, 1.25, Math.cos(a) * 2.01);
+    w.lookAt(Math.sin(a) * 9, 1.25, Math.cos(a) * 9);
+    g.add(w);
+  }
+
+  g.userData = { trim, door };
+  return g;
+}

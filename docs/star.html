@@ -4,284 +4,391 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>مِرصَد نورة</title>
+<meta name="theme-color" content="#04050a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='9' fill='%23ffcf8a'/></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=Cinzel:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./fonts/thmanyah.css">
+<!-- a second opinion on the type: if jsDelivr is unreachable the page still
+     lands on designed Arabic faces rather than a system default -->
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --f-display:'Aref Ruqaa', serif;
-    --f-body:   'Amiri', serif;
-    --f-ui:     'IBM Plex Sans Arabic', system-ui, sans-serif;
-    --f-lat:    'Cinzel', serif;
-    --ivory:#f3e9d9; --dim:rgba(243,233,217,.52); --faint:rgba(243,233,217,.26);
-    --ember:#ffb765; --star:#d9e4ff;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  /* Arabic is a joined script — never space its letters */
-  [lang="ar"], [dir="rtl"] { letter-spacing:0; }
-  html, body { width:100%; height:100%; overflow:hidden; background:#03040a;
-    overscroll-behavior:none; touch-action:none;
-    -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
-  #sky { position:fixed; inset:0; display:block; }
+/* ============================================================
+   مِرصَد نورة
+   An instrument, not a page: hairlines, rails and rules, one
+   accent, and type that carries the weight instead of boxes.
+   ============================================================ */
+:root {
+  --display:'Thmanyah Serif Display','Aref Ruqaa',serif;
+  --ui:'Thmanyah Sans','IBM Plex Sans Arabic',system-ui,sans-serif;
+  --mono:ui-monospace,'SF Mono','Roboto Mono',Menlo,monospace;
 
-  .layer { position:fixed; inset:0; display:flex; align-items:center;
-    justify-content:center; pointer-events:none; }
-  .wash { background:radial-gradient(ellipse 130% 100% at 50% 50%,
-    rgba(3,4,10,.30) 0%, rgba(2,3,7,.74) 58%, rgba(1,2,5,.92) 100%); }
-  .rule { width:min(280px,44vw); height:1px; flex:none;
-    background:linear-gradient(90deg,transparent,rgba(255,197,130,.55),transparent); }
-  .lat { font-family:var(--f-lat); letter-spacing:.4em; text-transform:uppercase;
-    direction:ltr; color:var(--faint); font-size:clamp(.55rem,1.4vh,.72rem); }
-  .bd { font-family:var(--f-body); color:rgba(243,233,217,.82); line-height:2.1; }
-  .act { pointer-events:none; cursor:pointer; position:relative;
-    font-family:var(--f-display); font-size:clamp(.95rem,2.2vh,1.15rem);
-    color:var(--ivory); padding-bottom:.5rem; }
-  .act::after { content:''; position:absolute; left:0; right:0; bottom:0; height:1px;
-    background:linear-gradient(90deg,transparent,var(--ember),transparent);
-    transform:scaleX(.45); transition:transform .7s cubic-bezier(.2,.7,.2,1); }
-  .act:hover::after { transform:scaleX(1); }
-  .on .act, #open:not(.gone) .act { pointer-events:auto; }
+  --ink:#04050a;
+  --ivory:#f2ece1;
+  --dim:rgba(242,236,225,.56);
+  --soft:rgba(242,236,225,.34);
+  --hair:rgba(242,236,225,.14);
+  --ember:#ffb765;
+  --sat:#9fd0ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+[lang="ar"], [dir="rtl"] { letter-spacing:0; }          /* Arabic joins; never track it */
+html, body {
+  width:100%; height:100%; overflow:hidden; background:var(--ink); color:var(--ivory);
+  font-family:var(--ui); font-weight:300; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
+}
+#sky { position:fixed; inset:0; display:block; }
 
-  /* ---------- opening ---------- */
-  #open { z-index:40; flex-direction:column; gap:3vh; text-align:center;
-    width:100%; transition:opacity 1.6s ease; }
-  #open .box { width:min(46ch,86vw); display:flex; flex-direction:column;
-    gap:3vh; align-items:center; }
-  #open h1 { font-family:var(--f-display); font-weight:400; color:var(--ivory);
-    font-size:clamp(1.7rem,5.4vh,3rem); text-shadow:0 0 50px rgba(255,205,150,.25); }
-  #open .bd { font-size:clamp(.85rem,2.1vh,1.1rem); }
-  #open.gone { opacity:0; pointer-events:none; }
-  #open.gone .act { pointer-events:none; }
+/* ---------- shared vocabulary ---------- */
+.k {                                   /* a key: small, spaced, latin */
+  font-family:var(--mono); font-size:10px; letter-spacing:.28em;
+  text-transform:uppercase; direction:ltr; color:var(--soft);
+}
+.n { font-family:var(--mono); direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; }
+.soft { color:var(--soft); }
+.hr { height:1px; background:var(--hair); width:100%; }
+.hr.lit { background:linear-gradient(90deg,transparent,rgba(255,183,101,.5),transparent); }
 
-  /* ---------- the instrument ---------- */
-  #hud { position:fixed; inset:0; z-index:20; pointer-events:none;
-    opacity:0; transition:opacity 2s ease; }
-  #hud.on { opacity:1; }
-  /* scrims: the readouts must survive over a bright patch of sky */
-  #hud::before { content:''; position:absolute; left:0; right:0; top:0; height:24vh;
-    background:linear-gradient(to bottom, rgba(2,3,8,.74), transparent); }
-  #hud::after { content:''; position:absolute; left:0; right:0; bottom:0; height:30vh;
-    background:linear-gradient(to top, rgba(2,3,8,.8), transparent); }
+/* an action reads as a label under a bracket, not as a button */
+.act {
+  position:relative; display:inline-block; cursor:pointer; pointer-events:none;
+  font-family:var(--ui); font-weight:500; font-size:clamp(.92rem,2.1vh,1.06rem);
+  color:var(--ivory); padding:.55rem 1.4rem .7rem; transition:color .3s ease;
+}
+.act::before, .act::after {
+  content:''; position:absolute; bottom:0; width:.75rem; height:1px; background:var(--ember);
+  transition:width .5s cubic-bezier(.2,.8,.2,1);
+}
+.act::before { right:0; } .act::after { left:0; }
+.act:hover::before, .act:hover::after { width:calc(50% - .3rem); }
+.act > i {                              /* the rule the brackets sit on */
+  position:absolute; left:1.4rem; right:1.4rem; bottom:0; height:1px;
+  background:var(--hair);
+}
 
-  /* --- the objective, top corner where the eye starts (RTL: right) --- */
-  #objective { position:absolute; top:calc(env(safe-area-inset-top,0px) + 62px);
-    right:max(20px, env(safe-area-inset-right)); text-align:right;
-    display:flex; flex-direction:column; gap:.7vh; }
-  #obK { font-family:var(--f-lat); font-size:clamp(.5rem,1.2vh,.62rem);
-    letter-spacing:.3em; direction:ltr; color:var(--faint); }
-  #obV { font-family:var(--f-ui); font-weight:500;
-    font-size:clamp(.9rem,2.1vh,1.12rem); color:var(--ivory);
-    text-shadow:0 1px 12px #000; }
-  #track { position:relative; display:flex; align-items:center; gap:9px;
-    flex-direction:row-reverse; margin-top:.5vh; }
-  #track::before { content:''; position:absolute; right:3px; left:3px; top:50%;
-    height:1px; background:rgba(243,233,217,.16); }
-  #track b { position:relative; width:9px; height:9px; display:block;
-    background:rgba(243,233,217,.32);
-    clip-path:polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
-    transition:background .7s ease, transform .7s cubic-bezier(.2,1.6,.4,1), filter .7s ease; }
-  #track b.lit { background:var(--ember); transform:scale(1.45);
-    filter:drop-shadow(0 0 8px rgba(255,183,101,.95)); }
-  #track b.next { animation:markWait 2.4s ease-in-out infinite; }
-  @keyframes markWait { 0%,100%{background:rgba(243,233,217,.32);} 50%{background:rgba(255,183,101,.62);} }
+/* ---------- entrance choreography ----------
+   Lines arrive from under their own baseline, one after another, the way a
+   title sequence does. clip-path does the masking so nothing spills, and the
+   stagger comes from nth-child rather than a script. */
+@keyframes riseIn {
+  from { clip-path:inset(0 0 100% 0); transform:translateY(.7em); opacity:0; }
+  to   { clip-path:inset(0 0 -20% 0); transform:none;             opacity:1; }
+}
+.rise > * { animation:riseIn .95s cubic-bezier(.22,.75,.2,1) both; }
+.rise > :nth-child(1) { animation-delay:.05s } .rise > :nth-child(2) { animation-delay:.13s }
+.rise > :nth-child(3) { animation-delay:.21s } .rise > :nth-child(4) { animation-delay:.29s }
+.rise > :nth-child(5) { animation-delay:.37s } .rise > :nth-child(6) { animation-delay:.45s }
+.rise > :nth-child(7) { animation-delay:.53s } .rise > :nth-child(8) { animation-delay:.61s }
+.rise > :nth-child(n+9) { animation-delay:.69s }
+@media (prefers-reduced-motion: reduce) {
+  .rise > * { animation:none; }
+  * { transition-duration:.01ms !important; }
+}
 
-  /* the compass band across the top */
-  #band { position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 14px);
-    height:38px; overflow:hidden; -webkit-mask:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);
-    mask:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent); }
-  #bandInner { position:absolute; top:0; height:100%; display:flex; align-items:flex-start; }
-  .tk { position:absolute; top:0; width:1px; background:var(--faint); }
-  .tk.maj { background:rgba(243,233,217,.55); }
-  .tkl { position:absolute; top:15px; transform:translateX(-50%);
-    font-family:var(--f-lat); font-size:11px; letter-spacing:.16em;
-    color:var(--dim); direction:ltr; white-space:nowrap; }
-  #bandMark { position:absolute; left:50%; top:0; width:1px; height:12px;
-    background:var(--ember); transform:translateX(-50%);
-    box-shadow:0 0 8px rgba(255,183,101,.9); }
+/* ============================================================
+   ١ · the way in — a loading page, then the flight
+   ============================================================ */
+#boot {
+  position:fixed; inset:0; z-index:90; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:0;
+  background:
+    radial-gradient(ellipse 92% 62% at 50% 38%, rgba(255,183,101,.06), transparent 70%),
+    var(--ink);
+  transition:opacity 1.1s ease, visibility 0s linear 0s;
+}
+/* visibility, not just pointer-events: a faded layer that still answers taps
+   swallows the clicks meant for whatever is behind it */
+#boot.gone { opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity 1.1s ease, visibility 0s linear 1.1s; }
+#bootMark { display:flex; flex-direction:column; align-items:center; gap:1.6vh; }
+#bootMark .k { font-size:9px; letter-spacing:.44em; }
+#bootTitle {
+  font-family:var(--display); font-weight:400;
+  font-size:clamp(2.1rem,7.4vh,4.2rem); line-height:1.15; color:var(--ivory);
+  text-shadow:0 0 70px rgba(255,196,130,.22);
+}
+/* a ring of ticks, like a dome's bearing ring */
+#bootRing { position:absolute; left:50%; top:50%; width:min(86vmin,520px); height:min(86vmin,520px);
+  transform:translate(-50%,-50%) translateY(-7vh); pointer-events:none; opacity:.55; }
+#bootRing circle { fill:none; stroke:var(--hair); }
+#bootRing .arc { stroke:var(--ember); stroke-linecap:round; opacity:.9;
+  filter:drop-shadow(0 0 8px rgba(255,183,101,.7)); transform:rotate(-90deg);
+  transform-origin:50% 50%; }
 
-  /* reticle at the centre of the view, with the hold ring */
-  #ret { --hold:0; position:absolute; left:50%; top:50%;
-    width:clamp(60px,12vh,92px); height:clamp(60px,12vh,92px);
-    transform:translate(-50%,-50%); color:var(--faint);
-    transition:color .6s ease, transform .6s ease; }
-  #ret svg { width:100%; height:100%; overflow:visible; }
-  #ret .hold { stroke:var(--ember); stroke-linecap:round;
-    stroke-dasharray:calc(var(--hold) * 257) 257;
-    transform:rotate(-90deg); transform-origin:50% 50%;
-    filter:drop-shadow(0 0 7px rgba(255,183,101,.9)); }
-  body.locked #ret { color:var(--ember); transform:translate(-50%,-50%) scale(1.14); }
-  body.locked #ret, body.locked #band { opacity:0; transition:opacity 1.2s ease; }
+#bootMark { transform:translateY(-7vh); }
+#bootMeter { position:absolute; left:50%; transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 22vh);
+  width:min(30ch,74vw); display:flex; flex-direction:column; gap:1.3vh; }
+#bootBar { position:relative; height:1px; background:var(--hair); }
+#bootBar i { position:absolute; top:0; bottom:0; right:0; width:0%;
+  background:linear-gradient(270deg,var(--ember),rgba(255,183,101,.2));
+  box-shadow:0 0 12px rgba(255,183,101,.55); transition:width .45s cubic-bezier(.3,.9,.3,1); }
+#bootRow { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; }
+#bootPct { font-family:var(--mono); font-size:clamp(.9rem,2.4vh,1.2rem); color:var(--ember);
+  direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; }
+#bootWhat { font-size:clamp(.72rem,1.7vh,.86rem); color:var(--soft); }
+#bootGo { position:absolute; left:50%; transform:translateX(-50%);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 12vh);
+  opacity:0; transition:opacity .9s ease; }
+#bootGo.ready { opacity:1; }
+#bootGo.ready .act { pointer-events:auto; }
+/* decoration must never sit on top of the only thing she can press */
+#bootNote { position:absolute; left:0; right:0; margin:0 auto; pointer-events:none;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 18px); width:min(40ch,84vw);
+  font-size:clamp(.66rem,1.55vh,.78rem); line-height:1.85; color:var(--soft); text-align:center; }
+#bootMeter, #bootMark, #bootRing { pointer-events:none; }
 
-  /* readouts down the sides */
-  .read { position:absolute; font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate;
-    font-size:clamp(9px,1.35vh,11px); letter-spacing:.13em; color:var(--dim);
-    line-height:2.1; text-shadow:0 1px 8px #000; }
-  #readL { left:max(16px,env(safe-area-inset-left)); bottom:calc(env(safe-area-inset-bottom,0px) + 56px); }
-  #readR { right:max(16px,env(safe-area-inset-right)); bottom:calc(env(safe-area-inset-bottom,0px) + 56px);
-    text-align:right; }
-  .read b { color:rgba(243,233,217,.85); font-weight:400; }
+/* the flight's captions */
+#flight { position:fixed; inset:0; z-index:60; pointer-events:none;
+  display:flex; align-items:flex-end; justify-content:center;
+  padding-bottom:16vh; opacity:0; transition:opacity .8s ease; }
+#flight.on { opacity:1; }
+#flightCap { text-align:center; }
+#flightCap .k { display:block; margin-bottom:1.1vh; }
+#flightCap b { display:block; font-family:var(--display); font-weight:400;
+  font-size:clamp(1.4rem,4.4vh,2.3rem); color:var(--ivory);
+  text-shadow:0 2px 40px rgba(0,0,0,.9); }
+#skip { position:fixed; z-index:61; bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
+  left:max(18px,env(safe-area-inset-left)); pointer-events:auto; cursor:pointer;
+  font-size:clamp(.7rem,1.6vh,.82rem); color:var(--soft); opacity:0;
+  transition:opacity .6s ease, color .3s ease; }
+#skip.on { opacity:1; } #skip:hover { color:var(--ivory); }
 
-  /* the guiding arrow, on a ring around the centre */
-  #arrow { position:absolute; left:0; top:0; width:17px; height:17px;
-    background:var(--ember); clip-path:polygon(100% 50%,0 0,22% 50%,0 100%);
-    filter:drop-shadow(0 0 9px rgba(255,183,101,.95));
-    opacity:0; transition:opacity .5s ease; will-change:transform; }
-  #arrow.on { opacity:.95; animation:pulse 1.7s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(255,183,101,.7));}
-    50%{filter:drop-shadow(0 0 16px rgba(255,183,101,1));} }
+/* ============================================================
+   ٢ · the instrument
+   ============================================================ */
+#hud { position:fixed; inset:0; z-index:20; pointer-events:none;
+  opacity:0; transition:opacity 1.6s ease; }
+#hud.on { opacity:1; }
+#hud::before { content:''; position:absolute; left:0; right:0; top:0; height:22vh;
+  background:linear-gradient(to bottom, rgba(3,4,9,.78), transparent); }
+#hud::after { content:''; position:absolute; left:0; right:0; bottom:0; height:28vh;
+  background:linear-gradient(to top, rgba(3,4,9,.84), transparent); }
 
-  /* the contextual prompt, bottom-centre where a game puts its prompts */
-  #prompt { position:absolute; left:0; right:0;
-    bottom:calc(env(safe-area-inset-bottom,0px) + 108px);
-    text-align:center; padding:0 8vw;
-    font-family:var(--f-ui); font-weight:400;
-    font-size:clamp(.86rem,2vh,1.06rem); line-height:1.9;
-    color:var(--ivory); text-shadow:0 1px 14px #000, 0 0 34px rgba(0,0,0,.9);
-    opacity:0; transition:opacity .7s ease; }
-  #prompt.on { opacity:1; }
-  #prompt em { font-style:normal; color:var(--ember); }
-  body.locked #prompt, body.locked #arrow { opacity:0 !important; }
+/* --- the bearing band --- */
+#band { position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 12px);
+  height:34px; overflow:hidden;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent);
+  mask:linear-gradient(90deg,transparent,#000 16%,#000 84%,transparent); }
+#bandInner { position:absolute; top:0; height:100%; }
+.tk { position:absolute; top:0; width:1px; background:rgba(242,236,225,.2); }
+.tk.maj { background:rgba(242,236,225,.5); }
+.tkl { position:absolute; top:14px; transform:translateX(-50%);
+  font-family:var(--mono); font-size:10px; letter-spacing:.18em;
+  color:var(--dim); direction:ltr; }
+#bandMark { position:absolute; left:50%; top:0; width:1px; height:11px;
+  background:var(--ember); transform:translateX(-50%);
+  box-shadow:0 0 9px rgba(255,183,101,.95); }
 
-  /* --- tools: the log and the tally, kept low and quiet --- */
-  #tools { position:absolute; left:0; right:0;
-    bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-    display:flex; align-items:center; justify-content:center; gap:22px; }
-  .tool { pointer-events:auto; cursor:pointer; position:relative;
-    font-family:var(--f-ui); font-weight:400; font-size:clamp(.76rem,1.75vh,.9rem);
-    color:var(--ivory); opacity:.78; padding:.45rem .1rem;
-    text-shadow:0 1px 10px #000; transition:opacity .4s ease; }
-  .tool:hover { opacity:1; }
-  .tool::after { content:''; position:absolute; left:0; right:0; bottom:.1rem; height:1px;
-    background:linear-gradient(90deg,transparent,var(--ember),transparent);
-    transform:scaleX(.3); transition:transform .6s cubic-bezier(.2,.7,.2,1); }
-  .tool:hover::after { transform:scaleX(1); }
-  #foundCount { font-family:var(--f-ui); font-weight:500;
-    font-size:clamp(.74rem,1.65vh,.88rem); color:var(--ember);
-    text-shadow:0 0 16px rgba(255,183,101,.5); }
-  #tallyK { font-family:var(--f-ui); font-weight:300;
-    font-size:clamp(.72rem,1.6vh,.84rem); color:var(--faint); }
-  #tally { display:flex; align-items:center; gap:8px; }
+/* --- the target, on the rail she reads first --- */
+#objective { position:absolute; top:calc(env(safe-area-inset-top,0px) + 58px);
+  right:max(18px,env(safe-area-inset-right)); text-align:right;
+  display:flex; flex-direction:column; align-items:flex-end; gap:.55vh;
+  padding-right:11px; }
+#objective::before {                    /* a rail, not a border */
+  content:''; position:absolute; right:0; top:2px; bottom:2px; width:1px;
+  background:linear-gradient(to bottom,var(--ember),rgba(255,183,101,.06)); }
+#obV { font-family:var(--display); font-weight:400;
+  font-size:clamp(1.05rem,2.7vh,1.5rem); line-height:1.25; color:var(--ivory);
+  text-shadow:0 1px 16px #000; }
+#track { position:relative; display:flex; flex-direction:row-reverse;
+  align-items:center; gap:7px; margin-top:.7vh; }
+#track b { width:7px; height:7px; display:block; background:rgba(242,236,225,.26);
+  clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);
+  transition:background .6s ease, transform .6s cubic-bezier(.2,1.6,.4,1); }
+#track b.lit { background:var(--ember); transform:scale(1.5);
+  filter:drop-shadow(0 0 7px rgba(255,183,101,.9)); }
+#track b.next { animation:wait 2.2s ease-in-out infinite; }
+@keyframes wait { 0%,100%{background:rgba(242,236,225,.26);} 50%{background:rgba(255,183,101,.7);} }
 
-  /* ---------- the observation log ---------- */
-  #log { position:fixed; inset:0; z-index:47; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:2.2vh;
-    background:radial-gradient(ellipse 120% 100% at 50% 50%, rgba(3,4,10,.955), rgba(1,2,5,.995));
-    opacity:0; pointer-events:none; transition:opacity .7s ease; }
-  #log.on { opacity:1; pointer-events:auto; }
-  #logList { width:min(38ch,88vw); max-height:62vh; overflow-y:auto;
-    display:flex; flex-direction:column; }
-  .logRow { all:unset; cursor:pointer; display:flex; align-items:baseline;
-    justify-content:space-between; gap:1.4rem; padding:1.15vh .2rem;
-    border-bottom:1px solid rgba(243,233,217,.09); }
-  .logRow:last-child { border-bottom:0; }
-  .lg-n { font-family:var(--f-ui); font-weight:400;
-    font-size:clamp(.86rem,2vh,1.02rem); color:rgba(243,233,217,.86); }
-  .lg-a { font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate; letter-spacing:.14em;
-    font-size:clamp(.68rem,1.55vh,.82rem); color:var(--dim); }
-  .logRow.down .lg-n { color:rgba(243,233,217,.34); }
-  .logRow.down .lg-a { font-family:var(--f-ui); letter-spacing:0; color:rgba(243,233,217,.28); }
-  .logRow.seen .lg-n { color:var(--ember); }
-  .logRow.seen .lg-n::after { content:' ✦'; font-size:.7em; opacity:.8; }
-  .logRow.cur { background:linear-gradient(90deg,transparent,rgba(255,183,101,.09),transparent); }
-  .logRow.cur .lg-n { color:var(--ivory); }
-  #logClose { pointer-events:none; }
-  #log.on #logClose { pointer-events:auto; }
+/* --- the reticle --- */
+#ret { --hold:0; position:absolute; left:50%; top:50%;
+  width:clamp(56px,11.5vh,88px); height:clamp(56px,11.5vh,88px);
+  transform:translate(-50%,-50%); color:rgba(242,236,225,.3);
+  transition:color .5s ease, transform .5s ease, opacity 1s ease; }
+#ret svg { width:100%; height:100%; overflow:visible; }
+#ret .hold { stroke:var(--ember); stroke-linecap:round;
+  stroke-dasharray:calc(var(--hold) * 257) 257;
+  transform:rotate(-90deg); transform-origin:50% 50%;
+  filter:drop-shadow(0 0 8px rgba(255,183,101,.9)); }
+body.locked #ret { color:var(--ember); transform:translate(-50%,-50%) scale(1.12); opacity:0; }
+body.locked #band { opacity:0; transition:opacity 1.1s ease; }
 
-  /* ---------- سماؤكِ الآن: the briefing ---------- */
-  #brief { position:fixed; inset:0; z-index:43; display:flex;
-    align-items:center; justify-content:center; padding:0 6vw;
-    background:radial-gradient(ellipse 130% 100% at 50% 45%,
-      rgba(4,5,12,.93) 0%, rgba(2,3,7,.965) 55%, rgba(1,2,5,.99) 100%);
-    opacity:0; pointer-events:none; transition:opacity 1s ease; }
-  #brief.on { opacity:1; pointer-events:auto; }
-  #brief .bx { width:min(44ch,90vw); max-height:90vh; overflow-y:auto;
-    display:flex; flex-direction:column; gap:2.2vh; align-items:center;
-    text-align:center; padding:3vh 0; -webkit-overflow-scrolling:touch; }
-  #bWhere, #bSky, #bList p, #bIss, #bBack {
-    font-family:var(--f-body); font-size:clamp(.84rem,1.98vh,1.02rem);
-    line-height:2.05; color:rgba(243,233,217,.8); }
-  #bWhere b, #bSky b, #bList b, #bIss b, #bBack b { color:var(--ember); font-weight:400; }
-  .n { direction:ltr; unicode-bidi:isolate; }
-  #bSky { font-family:var(--f-ui); font-weight:400; color:var(--ivory);
-    font-size:clamp(.86rem,2vh,1.06rem); line-height:1.95; }
-  #bList { display:flex; flex-direction:column; gap:1.5vh; }
-  #bIss { position:relative; padding-top:2.2vh; }
-  #bIss::before { content:''; position:absolute; top:0; left:22%; right:22%; height:1px;
-    background:linear-gradient(90deg,transparent,rgba(217,228,255,.32),transparent); }
-  #bIss b { color:var(--star); }
-  #bBack { color:var(--dim); font-size:clamp(.76rem,1.75vh,.9rem); }
-  #briefGo { pointer-events:none; }
-  #brief.on #briefGo { pointer-events:auto; }
+/* --- the readouts, on rails down each side --- */
+.read { position:absolute; bottom:calc(env(safe-area-inset-bottom,0px) + 52px);
+  font-family:var(--mono); font-size:clamp(9px,1.3vh,11px); letter-spacing:.1em;
+  direction:ltr; unicode-bidi:isolate; color:var(--dim); line-height:2.05;
+  text-shadow:0 1px 10px #000; font-variant-numeric:tabular-nums; }
+#readL { left:max(15px,env(safe-area-inset-left)); padding-left:9px; text-align:left; }
+#readR { right:max(15px,env(safe-area-inset-right)); padding-right:9px; text-align:right; }
+#readL::before, #readR::before { content:''; position:absolute; top:3px; bottom:3px; width:1px;
+  background:var(--hair); }
+#readL::before { left:0; } #readR::before { right:0; }
+.read b { color:rgba(242,236,225,.9); font-weight:400; }
 
-  /* ---------- the moment she finds it ---------- */
-  #found { z-index:44; flex-direction:column; text-align:center;
-    background:radial-gradient(ellipse 130% 100% at 50% 45%,
-      rgba(4,5,12,.90) 0%, rgba(2,3,7,.955) 55%, rgba(1,2,5,.985) 100%);
-    opacity:0; transition:opacity 2.4s ease; }
-  #found.on { opacity:1; }
-  #found .box { width:min(46ch,86vw); display:flex; flex-direction:column;
-    gap:2.1vh; align-items:center; max-height:92vh; overflow-y:auto;
-    padding:5vh 0 4vh; -webkit-overflow-scrolling:touch; }
-  #fName { font-family:var(--f-display); font-size:clamp(1.45rem,4.2vh,2.3rem);
-    color:var(--ivory); text-shadow:0 0 44px rgba(255,205,150,.4); }
-  #fFacts { font-family:var(--f-body); font-size:clamp(.82rem,1.95vh,1.02rem);
-    line-height:2.1; color:rgba(243,233,217,.78); }
-  #fFacts b { color:var(--ember); font-weight:400; }
-  #fLine { font-family:var(--f-display); font-size:clamp(.95rem,2.3vh,1.28rem);
-    line-height:2.15; color:var(--ivory); text-shadow:0 2px 26px rgba(0,0,0,.95); }
-  #fTrip { display:flex; flex-direction:column; gap:.7vh; }
-  #tripT { font-family:var(--f-body); font-size:clamp(.66rem,1.55vh,.82rem);
-    color:var(--faint); }
-  #tripV { font-family:var(--f-lat); direction:ltr; unicode-bidi:isolate; letter-spacing:.14em;
-    font-size:clamp(.78rem,1.9vh,1.02rem); color:var(--ember);
-    text-shadow:0 0 20px rgba(255,183,101,.55); }
-  #nextBtn { pointer-events:none; }
-  #found.on .box { pointer-events:auto; }
-  #found.on #nextBtn { pointer-events:auto; }
+/* --- the guide --- */
+#arrow { position:absolute; left:0; top:0; width:15px; height:15px;
+  background:var(--ember); clip-path:polygon(100% 50%,0 0,24% 50%,0 100%);
+  filter:drop-shadow(0 0 9px rgba(255,183,101,.95));
+  opacity:0; transition:opacity .45s ease; will-change:transform; }
+#arrow.on { opacity:.95; animation:beat 1.8s ease-in-out infinite; }
+@keyframes beat { 0%,100%{filter:drop-shadow(0 0 6px rgba(255,183,101,.65));}
+  50%{filter:drop-shadow(0 0 17px rgba(255,183,101,1));} }
 
-  #note { position:fixed; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,0px) + 150px);
-    z-index:46; text-align:center; padding:0 8vw; font-family:var(--f-body);
-    font-size:clamp(.7rem,1.6vh,.86rem); line-height:2; color:var(--dim);
-    text-shadow:0 1px 12px #000; opacity:0; transition:opacity 1s ease; }
-  #note.on { opacity:1; }
+/* --- what to do next --- */
+#prompt { position:absolute; left:0; right:0;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 104px);
+  text-align:center; padding:0 7vw; font-weight:400;
+  font-size:clamp(.88rem,2.05vh,1.08rem); line-height:1.95; color:var(--ivory);
+  text-shadow:0 1px 16px #000,0 0 40px rgba(0,0,0,.92);
+  opacity:0; transition:opacity .6s ease; }
+#prompt.on { opacity:1; }
+#prompt em { font-style:normal; color:var(--ember); }
+#prompt u { pointer-events:auto; cursor:pointer; text-decoration:none;
+  display:inline-block; margin-top:.8vh; font-size:.9em; color:var(--ember);
+  border-bottom:1px solid rgba(255,183,101,.45); padding-bottom:2px; }
+body.locked #prompt, body.locked #arrow { opacity:0 !important; }
 
-  @media (max-width:420px) {
-    #obV { font-size:clamp(.82rem,1.9vh,.96rem); }
-    #track b { width:8px; height:8px; } #track { gap:7px; }
-    #readL, #readR { font-size:9px; }
-    #found .box { gap:1.7vh; }
-    #fFacts { line-height:1.95; }
-    #fLine { line-height:2.0; font-size:clamp(.9rem,2.15vh,1.1rem); }
-  }
+/* --- the tools --- */
+#tools { position:absolute; left:0; right:0;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+  display:flex; align-items:center; justify-content:center; gap:0; }
+.tool { pointer-events:auto; cursor:pointer; position:relative; padding:.5rem 1.15rem;
+  font-weight:400; font-size:clamp(.78rem,1.75vh,.9rem); color:var(--dim);
+  text-shadow:0 1px 10px #000; transition:color .3s ease; }
+.tool:hover { color:var(--ivory); }
+.tool + .tool::after, #tally::after { content:''; position:absolute; right:0; top:28%; bottom:28%;
+  width:1px; background:var(--hair); }
+#tally { position:relative; display:flex; align-items:center; gap:7px; padding:.5rem 1.15rem; }
+#tallyK { font-size:clamp(.72rem,1.6vh,.82rem); color:var(--soft); }
+#foundCount { font-weight:500; font-size:clamp(.76rem,1.7vh,.88rem); color:var(--ember); }
+
+/* ============================================================
+   ٣ · the sheets — full-bleed, ruled, never a card
+   ============================================================ */
+.sheet {
+  position:fixed; inset:0; z-index:52;   /* above the note, which is advice, not content */ display:flex; flex-direction:column;
+  align-items:center; padding:0 6vw;
+  background:linear-gradient(180deg, rgba(3,4,9,.985), rgba(4,5,12,.955) 45%, rgba(2,3,7,.99));
+  opacity:0; pointer-events:none; transition:opacity .7s ease;
+}
+.sheet.on { opacity:1; pointer-events:auto; }
+.sheet > .in { width:min(46ch,92vw); margin:auto; display:flex; flex-direction:column;
+  gap:2.1vh; text-align:center; max-height:92vh; overflow-y:auto;
+  padding:5vh 0 4vh; -webkit-overflow-scrolling:touch; }
+.sheet .ttl { font-family:var(--display); font-weight:400;
+  font-size:clamp(1.4rem,4vh,2.15rem); line-height:1.3; color:var(--ivory); }
+.sheet p, .sheet .bd { font-weight:300; font-size:clamp(.86rem,2vh,1.02rem);
+  line-height:2.05; color:rgba(242,236,225,.82); }
+.sheet b { font-weight:500; color:var(--ember); }
+.sheet .act { align-self:center; margin-top:1vh; }
+.sheet.on .act { pointer-events:auto; }
+
+/* the briefing's own rhythm */
+#bList { display:flex; flex-direction:column; gap:1.5vh; }
+#bIss { position:relative; padding-top:2.3vh; }
+#bIss::before { content:''; position:absolute; top:0; left:24%; right:24%; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(159,208,255,.35),transparent); }
+#bIss b { color:var(--sat); }
+#bBack { color:var(--soft); font-size:clamp(.76rem,1.75vh,.88rem); }
+
+/* the list of her sky */
+#log .in { text-align:right; }
+#logList { display:flex; flex-direction:column; width:100%; }
+.lgHead { display:flex; align-items:baseline; justify-content:space-between;
+  padding:2.2vh .1rem .9vh; border-bottom:1px solid var(--hair); }
+.lgHead span { font-weight:500; font-size:clamp(.8rem,1.85vh,.94rem); color:var(--ivory); }
+.lgHead em { font-style:normal; font-family:var(--mono); font-size:11px; color:var(--soft); }
+.lgHead:first-child, .lgNote + .lgHead { padding-top:0; }
+.logRow { all:unset; cursor:pointer; display:flex; align-items:baseline;
+  justify-content:space-between; gap:1.2rem; padding:1.25vh .1rem;
+  border-bottom:1px solid rgba(242,236,225,.06); }
+.lg-n { font-weight:400; font-size:clamp(.88rem,2vh,1.02rem); color:rgba(242,236,225,.9); }
+.lg-a { font-size:clamp(.7rem,1.6vh,.82rem); color:var(--ember); white-space:nowrap;
+  display:flex; align-items:baseline; gap:.5rem; }
+.lg-a .n { font-size:.95em; }
+.lg-a .dir { font-family:var(--ui); font-weight:300; color:var(--soft); }
+.logRow.down .lg-n { color:rgba(242,236,225,.42); }
+.logRow.down .lg-a { color:var(--soft); }
+.logRow.seen .lg-n::after { content:' ✦'; font-size:.66em; color:var(--ember); }
+.logRow.cur { box-shadow:inset -2px 0 0 var(--ember); }
+.logRow.cur .lg-n { color:var(--ivory); }
+.lgNote { padding:0 0 1.6vh; font-size:clamp(.76rem,1.75vh,.88rem);
+  line-height:1.9; color:var(--soft); text-align:center; }
+.lgEmpty { padding:3vh 0; font-weight:300; line-height:2.05; text-align:center;
+  color:rgba(242,236,225,.78); font-size:clamp(.86rem,2vh,1.02rem); }
+.lgEmpty b { color:var(--ember); font-weight:500; }
+
+/* the moment she finds something */
+#fLat { font-family:var(--mono); font-size:10px; letter-spacing:.24em;
+  text-transform:uppercase; direction:ltr; color:var(--soft); }
+#fName { font-family:var(--display); font-weight:400;
+  font-size:clamp(1.7rem,5.2vh,2.8rem); color:var(--ivory);
+  text-shadow:0 0 60px rgba(255,196,130,.28); }
+#fFacts { font-weight:300; font-size:clamp(.84rem,1.95vh,1rem); line-height:2.05;
+  color:rgba(242,236,225,.76); }
+#fLine { font-family:var(--display); font-weight:400;
+  font-size:clamp(1rem,2.4vh,1.32rem); line-height:2.05; color:var(--ivory); }
+#fTrip { display:flex; flex-direction:column; gap:.6vh; }
+#tripT { font-size:clamp(.7rem,1.6vh,.82rem); color:var(--soft); }
+#tripV { font-size:clamp(.8rem,1.9vh,1rem); color:var(--ember);
+  text-shadow:0 0 22px rgba(255,183,101,.5); }
+#tripV .n { font-size:.96em; }
+
+#note { position:fixed; left:0; right:0; z-index:46;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 146px);
+  text-align:center; padding:0 8vw; font-weight:300;
+  font-size:clamp(.72rem,1.65vh,.86rem); line-height:1.95; color:var(--dim);
+  text-shadow:0 1px 14px #000; opacity:0; transition:opacity .9s ease; }
+#note.on { opacity:1; }
+
+@media (max-width:420px) {
+  #obV { font-size:clamp(.98rem,2.4vh,1.2rem); }
+  #track b { width:6px; height:6px; } #track { gap:6px; }
+  .tool { padding:.5rem .82rem; }
+  #tally { padding:.5rem .82rem; }
+  .sheet > .in { gap:1.7vh; }
+}
 </style>
 </head>
 <body>
 <canvas id="sky"></canvas>
 
-<div class="layer wash" id="open">
-  <div class="box">
-    <div class="lat">The Observatory</div>
-    <h1>مِرصَد نُورة</h1>
-    <div class="rule"></div>
-    <div class="bd">استمتعي يا روحي 🥹<br>
-      هالمرّة لو أشوفكِ تقولين ودّي أسافر للفضاء… يا ويلك.<br><br>
-      الحين أنا حقّقت لكِ هالشي 🥹 خلّيتكِ تسافرين، وفوقه صنعت لكِ مرصداً لكِ أنتِ —
-      مرتبط بالأقمار الصناعية، ومرتبط بالنجوم الآن، في هذا الوقت تحديداً.<br>
-      لو تدخلين الموقع كل فترة، بتشوفين إن الموضوع جالس يتحدّث… بمرصدكِ.<br><br>
-      اخرجي لمكانٍ ترين فيه السماء، وارفعي جوالكِ ولُفّي به —
-      وأنا بقول لكِ وش فوق راسكِ بالضبط.</div>
-    <div class="rule"></div>
-    <div class="act" id="beginBtn">افتحي السماء</div>
-    <div class="lat" id="openHint">Allow location &amp; motion</div>
+<!-- ١ · loading ------------------------------------------------ -->
+<div id="boot">
+  <svg id="bootRing" viewBox="0 0 200 200">
+    <circle cx="100" cy="100" r="92"/>
+    <circle class="arc" id="bootArc" cx="100" cy="100" r="92"
+            stroke-width="1.6" stroke-dasharray="0 578"/>
+  </svg>
+  <div id="bootMark" class="rise">
+    <span class="k">The Observatory</span>
+    <div id="bootTitle">مِرصَد نُورة</div>
+    <div class="hr lit" style="width:min(220px,40vw)"></div>
   </div>
+  <div id="bootMeter">
+    <div id="bootBar"><i id="bootFill"></i></div>
+    <div id="bootRow">
+      <span id="bootPct">٠٪</span>
+      <span id="bootWhat">أفتح السماء…</span>
+    </div>
+  </div>
+  <div id="bootGo"><span class="act" id="beginBtn">ادخلي المرصد<i></i></span></div>
+  <div id="bootNote">سيطلب منكِ الجوال إذن الموقع والحركة — وبدونهما لا يعرف المرصد أين يوجّه نظره.</div>
 </div>
 
+<!-- الرحلة -->
+<div id="flight"><div id="flightCap"><span class="k" id="capK"></span><b id="capV"></b></div></div>
+<div id="skip">تخطّي</div>
+
+<!-- ٢ · the instrument ---------------------------------------- -->
 <div id="hud">
   <div id="band"><div id="bandInner"></div><div id="bandMark"></div></div>
 
   <div id="objective">
-    <div id="obK">Target</div>
+    <span class="k" id="obK">Target</span>
     <div id="obV"></div>
     <div id="track"></div>
   </div>
@@ -289,12 +396,12 @@
   <div id="arrow"></div>
 
   <div id="ret">
-    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
-      <circle cx="50" cy="50" r="30" opacity=".5"/>
-      <circle cx="50" cy="50" r="41" opacity=".22"/>
-      <path d="M50 4v16M50 80v16M4 50h16M80 50h16"/>
-      <circle cx="50" cy="50" r="2.4" fill="currentColor" stroke="none"/>
-      <circle class="hold" cx="50" cy="50" r="41" stroke-width="2.4"/>
+    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1">
+      <circle cx="50" cy="50" r="29" opacity=".45"/>
+      <circle cx="50" cy="50" r="41" opacity=".18"/>
+      <path d="M50 2v14M50 84v14M2 50h14M84 50h14"/>
+      <circle cx="50" cy="50" r="2" fill="currentColor" stroke="none"/>
+      <circle class="hold" cx="50" cy="50" r="41" stroke-width="2.2"/>
     </svg>
   </div>
 
@@ -304,49 +411,66 @@
 
   <div id="tools">
     <div class="tool" id="briefBtn">سماؤكِ الآن</div>
-    <div class="tool" id="logBtn">سِجِلّ الرصد</div>
-    <div id="tally">
-      <span id="tallyK">رُصِدَ</span>
-      <span id="foundCount">٠ من ١١</span>
-    </div>
+    <div class="tool" id="logBtn">ما فوقكِ</div>
+    <div id="tally"><span id="tallyK">رُصِدَ</span><span id="foundCount">٠ من ١١</span></div>
   </div>
 </div>
 
-<div id="log">
-  <div class="lat">Tonight&nbsp;·&nbsp;Above You</div>
-  <div class="rule"></div>
-  <div id="logList"></div>
-  <div class="rule"></div>
-  <div class="act" id="logClose">أغلقي السِّجل</div>
+<!-- ٣ · the sheets -------------------------------------------- -->
+<div class="sheet" id="letter">
+  <div class="in rise">
+    <span class="k">From Rashed</span>
+    <div class="ttl">إلى نُورة</div>
+    <div class="hr lit"></div>
+    <p>استمتعي يا روحي 🥹<br>
+      هالمرّة لو أشوفكِ تقولين ودّي أسافر للفضاء… يا ويلك.</p>
+    <p>الحين أنا حقّقت لكِ هالشي 🥹 خلّيتكِ تسافرين، وفوقه صنعت لكِ مرصداً لكِ أنتِ —
+      مرتبط بالأقمار الصناعية، ومرتبط بالنجوم الآن، في هذا الوقت تحديداً.<br>
+      لو تدخلين الموقع كل فترة، بتشوفين إن الموضوع جالس يتحدّث… بمرصدكِ.</p>
+    <p class="soft">اخرجي لمكانٍ ترين فيه السماء، وارفعي جوالكِ ولُفّي به —
+      وأنا بقول لكِ وش فوق راسكِ بالضبط.</p>
+    <div class="hr"></div>
+    <span class="act" id="letterGo">افتحي سماءكِ<i></i></span>
+  </div>
 </div>
 
-<div id="brief">
-  <div class="bx">
-    <div class="lat">Your Sky · Right Now</div>
-    <div class="rule"></div>
+<div class="sheet" id="brief">
+  <div class="in rise">
+    <span class="k">Your Sky · Right Now</span>
+    <div class="ttl">سماؤكِ الآن</div>
+    <div class="hr lit"></div>
     <div id="bWhere"></div>
     <div id="bSky"></div>
     <div id="bList"></div>
     <div id="bIss"></div>
     <div id="bBack"></div>
-    <div class="rule"></div>
-    <div class="act" id="briefGo">ارفعي رأسكِ</div>
+    <div class="hr"></div>
+    <span class="act" id="briefGo">ارفعي رأسكِ<i></i></span>
   </div>
 </div>
 
-<div class="layer" id="found">
-  <div class="box">
-    <div class="lat" id="fLat"></div>
+<div class="sheet" id="log">
+  <div class="in">
+    <span class="k">Above You · Tonight</span>
+    <div class="ttl">ما فوقكِ الآن</div>
+    <div id="logList"></div>
+    <span class="act" id="logClose">أغلقي القائمة<i></i></span>
+  </div>
+</div>
+
+<div class="sheet" id="found">
+  <div class="in rise">
+    <span class="k" id="fLat"></span>
     <div id="fName"></div>
-    <div class="rule"></div>
+    <div class="hr lit"></div>
     <div id="fFacts"></div>
-    <div class="rule"></div>
+    <div class="hr"></div>
     <div id="fLine"></div>
     <div id="fTrip">
       <div id="tripT">الضوء الذي يلمس عينكِ الآن ظلّ يركض نحوكِ</div>
       <div id="tripV"></div>
     </div>
-    <div class="act" id="nextBtn">الهدف التالي</div>
+    <span class="act" id="nextBtn">الهدف التالي<i></i></span>
   </div>
 </div>
 

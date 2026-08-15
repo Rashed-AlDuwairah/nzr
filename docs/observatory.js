@@ -7,10 +7,16 @@
 //  rains on her birthday. She stands under it while she looks.
 // ============================================================
 import * as THREE from 'three';
-import { buildNoura, buildRiyadh } from './world.js';
-import { TARGETS, LIVE, locate, nextRise, moonInfo, Astro } from './targets.js';
+import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from './vendor/postprocessing/RenderPass.js';
+import { ShaderPass } from './vendor/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
+import { buildNoura, buildRiyadh, buildWormhole, buildEarth, buildObservatory } from './world.js';
+import { TARGETS, LIVE, locate, moonInfo, Astro } from './targets.js';
 import { issNow, nextPass } from './iss.js';
-import { sky, census, upcoming, moonLine, clock as hhmm, dirName, sinceLast } from './brief.js';
+import { acquire, describe as placeName, skyErrorDeg, USABLE_M } from './place.js';
+import { sky, census, upcoming, moonLine, clock as hhmm, dirName, sinceLast,
+         nextObservable, howFar, MIN_ALT } from './brief.js';
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 const $ = id => document.getElementById(id);
@@ -42,9 +48,11 @@ const S = {
   yaw: 0.16, pitch: 0.22, yawV: 0, pitchV: 0,
   idx: 0, found: new Set(), locked: false, lockHold: 0,
   ready: false, started: false,
-  obs: null,
+  obs: null, place: null,
   mq: new THREE.Quaternion(), hasMq: false, lastMotion: 0,
   iss: null, issA: null, issPass: null, issErr: false,
+  markY: -46.6753 * Math.PI / 180,
+  northOff: 0, hasNorth: false, backAt: null,
 };
 window.__OBS = S;
 
@@ -58,19 +66,98 @@ renderer.toneMappingExposure = 1.35;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
+
+// motion is a choice, not an assumption
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 0.1, 4000);
 camera.position.set(0, 1.62, 0);   // her eye height, so the ground reads as ground
+
+// ---------------------------------------------------------------- the grade
+//  A multisampled half-float target, one bloom pass, and a final grade.
+//  The dither at the end is the important part: this page is almost entirely
+//  a very dark gradient, and 8-bit output turns that into visible rings.
+//  Interleaved gradient noise remapped to a triangular distribution is the
+//  standard fix (Jimenez, *Next Generation Post Processing in Call of Duty:
+//  Advanced Warfare*) — it costs nothing and removes the banding completely.
+const _sz = renderer.getDrawingBufferSize(new THREE.Vector2());
+const composer = new EffectComposer(renderer,
+  new THREE.WebGLRenderTarget(_sz.width, _sz.height, { type: THREE.HalfFloatType, samples: 4 }));
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.7, 0.72);
+composer.addPass(bloom);
+
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime:  { value: 0 },
+    uCA:    { value: 0.0012 },
+    uVig:   { value: 0.52 },
+    uGrain: { value: 0.030 },
+    uRush:  { value: 0.0 },     // radial streak, only while falling
+  },
+  vertexShader: `varying vec2 vUv;
+    void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform float uTime, uCA, uVig, uGrain, uRush;
+    varying vec2 vUv;
+
+    // interleaved gradient noise — cheap, and its error is spread like blue noise
+    float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+
+    void main(){
+      vec2 uv = vUv, toC = uv - 0.5;
+      vec3 col = vec3(0.0); float total = 0.0;
+      for (int i = 0; i < 6; i++){
+        float t = float(i) / 5.0;
+        float w = 1.0 - t * 0.55;
+        vec2 suv = uv - toC * uRush * t * 0.30;
+        float ca = uCA * (0.35 + dot(toC, toC) * 3.2) * (1.0 + uRush * 5.0);
+        col += vec3(texture2D(tDiffuse, suv + toC * ca).r,
+                    texture2D(tDiffuse, suv).g,
+                    texture2D(tDiffuse, suv - toC * ca).b) * w;
+        total += w;
+        if (uRush < 0.001) { total = w; break; }
+      }
+      col /= total;
+
+      float vig = 1.0 - smoothstep(0.34, 1.22, length(toC) * (1.15 + uRush)) * uVig;
+      col *= vig;
+
+      float g = ign(gl_FragCoord.xy + fract(uTime) * 137.0) - 0.5;
+      col += g * uGrain * (0.35 + 0.65 * (1.0 - dot(col, vec3(0.333))));
+
+      // uniform -> triangular PDF, then one 8-bit step: bands become stipple
+      float d = ign(gl_FragCoord.xy + 11.0);
+      float tri = d < 0.5 ? sqrt(2.0 * d) - 1.0 : 1.0 - sqrt(2.0 - 2.0 * d);
+      col += tri / 255.0;
+
+      gl_FragColor = vec4(col, 1.0);
+    }`
+};
+const grade = new ShaderPass(GradeShader);
+composer.addPass(grade);
+if (REDUCED) { grade.uniforms.uGrain.value = 0.012; grade.uniforms.uCA.value = 0.0; }
+
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  bloom.setSize(innerWidth, innerHeight);
 });
 
 const R = 900;
+// Everything that has a real compass bearing hangs off `world`, so it can be
+// turned as one to agree with the phone's compass. Without this the sky is
+// drawn against the phone's arbitrary alpha origin and every direction — the
+// arrow included — is off by an unknown angle.
+const world = new THREE.Group();
+scene.add(world);
 const skyGroup = new THREE.Group();     // the celestial sphere, turned to her horizon
-scene.add(skyGroup);
+world.add(skyGroup);
 const localGroup = new THREE.Group();   // things fixed to her ground
-scene.add(localGroup);
+world.add(localGroup);
 
 // ---- night, airglow, and the ground she stands on
 {
@@ -108,11 +195,56 @@ scene.add(localGroup);
   her.traverse(o => {
     const u = o.material && o.material.uniforms;
     if (!u || !u.uBase) return;
-    u.uBase.value.addScalar(0.055);
-    u.uCity.value.multiplyScalar(1.3);
-    u.uRim.value *= 1.7;
+    u.uBase.value.addScalar(0.018);
+    u.uCity.value.multiplyScalar(1.15);
+    u.uRim.value *= 1.25;
   });
   localGroup.add(her);
+}
+
+// ---- a little light, so the dome and the figure are objects and not cut-outs
+{
+  scene.add(new THREE.HemisphereLight(0x33406e, 0x160d07, 1.5));
+  const spill = new THREE.PointLight(0xffb765, 14.0, 30, 2.0);
+  spill.position.set(-4.4, 1.4, -7.2);
+  scene.add(spill);
+}
+
+// ---- her observatory, standing beside her
+const dome = buildObservatory();
+dome.position.set(-5.4, 0, -9.6);
+dome.rotation.y = 0.46;
+localGroup.add(dome);
+
+// ---------------------------------------------------------------- the flight
+//  Everything the arrival needs lives far above the ground scene, so the
+//  two never see each other. The camera visits it and comes back.
+const FLY_Y = 10000;
+const flight = new THREE.Group();
+flight.position.set(0, FLY_Y, 0);
+flight.visible = false;
+scene.add(flight);
+
+const worm = buildWormhole();
+flight.add(worm);
+
+const earth = buildEarth();
+earth.position.set(0, 0, -900);
+earth.rotation.z = 0.41;                 // her planet's tilt, roughly
+flight.add(earth);
+
+// a field of stars for the approach, so Earth is not floating in a void
+{
+  const N = 1400, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const v = new THREE.Vector3().randomDirection().multiplyScalar(2600 + Math.random() * 900);
+    pos[i*3] = v.x; pos[i*3+1] = v.y; pos[i*3+2] = v.z;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  flight.add(new THREE.Points(g, new THREE.PointsMaterial({
+    color: 0xdfe6ff, size: 3.4, sizeAttenuation: false,
+    transparent: true, opacity: 0.85, depthWrite: false })));
 }
 
 // ---------------------------------------------------------------- catalogue
@@ -240,6 +372,7 @@ function buildMoon() {
           gl_FragColor = vec4(surf * (lit * 1.05 + 0.012), smoothstep(1.0, 0.88, r2));
         }`
     }));
+  moonMesh.visible = false;   // until it is placed, it is a 46-unit black disc
   localGroup.add(moonMesh);
 }
 
@@ -315,26 +448,107 @@ function attachMotion() {
   addEventListener('pointerup', () => { down = false; });
 }
 
-// ---------------------------------------------------------------- the log
+// ---------------------------------------------------------------- the list
+//  What is above her, highest first, then what is not and when it returns.
+//  Rebuilt on every open, because between one open and the next the sky
+//  has moved.
 function buildLog() {
   const host = $('logList');
   host.innerHTML = '';
-  TARGETS.forEach((t, i) => {
-    const row = document.createElement('button');
-    row.className = 'logRow';
-    row.dataset.i = i;
-    row.innerHTML = `<span class="lg-n">${t.ar}</span><span class="lg-a"></span>`;
-    row.addEventListener('click', () => { selectTarget(i); toggleLog(false); });
-    host.appendChild(row);
-  });
+  const now = new Date();
+  const rows = TARGETS.map((t, i) => ({ t, i, p: locate(t, S.obs, now) }));
+  const up = rows.filter(r => !r.p.stale && r.p.alt > MIN_ALT).sort((a, b) => b.p.alt - a.p.alt);
+  const down = rows.filter(r => r.p.stale || r.p.alt <= MIN_ALT);
+
+  // when do the ones below come back? computed once, here, not per frame
+  const back = down.length ? nextObservable(down.map(r => r.t), S.obs, now) : {};
+
+  const head = (txt, sub) => {
+    const h = document.createElement('div');
+    h.className = 'lgHead';
+    h.innerHTML = `<span>${txt}</span>${sub ? `<em>${sub}</em>` : ''}`;
+    host.appendChild(h);
+  };
+  const row = (r, right, cls) => {
+    const b = document.createElement('button');
+    b.className = 'logRow' + (cls ? ' ' + cls : '');
+    b.dataset.i = r.i;
+    b.innerHTML = `<span class="lg-n">${r.t.ar}</span><span class="lg-a">${right}</span>`;
+    b.addEventListener('click', () => { selectTarget(r.i); toggleLog(false); });
+    host.appendChild(b);
+  };
+
+  const st = sky(S.obs, now);
+  if (st.alt > -6) {
+    const d = document.createElement('div');
+    d.className = 'lgNote';
+    d.textContent = st.alt > 0
+      ? 'الشمس ما زالت فوق الأفق — ما تحته موجودٌ فعلاً، لكنكِ لن ترَيه حتى تغيب.'
+      : 'الشفق ما زال في السماء — انتظري قليلاً وسيظهر أكثرها.';
+    host.appendChild(d);
+  }
+
+  if (up.length) {
+    head('فوق أفقكِ الآن', arNum(up.length));
+    for (const r of up)
+      row(r, `<b class="n">${arNum(Math.round(r.p.alt))}°</b> <span class="dir">${dirName(r.p.az)}</span>`,
+          S.found.has(r.t.id) ? 'seen' : '');
+  } else {
+    // the honest empty state: nothing at all, and when that changes
+    const soonest = Object.entries(back).sort((a, b) => a[1] - b[1])[0];
+    const e = document.createElement('div');
+    e.className = 'lgEmpty';
+    e.innerHTML = soonest
+      ? `لا شيء من قائمتكِ فوق الأفق في هذه اللحظة.<br>`
+        + `أقرب ما يعود إليكِ <b>${TARGETS.find(t => t.id === soonest[0]).ar}</b>، `
+        + `${howFar(soonest[1], now)} — الساعة <b class="n">${hhmm(soonest[1])}</b>.`
+      : 'لا شيء من قائمتكِ فوق الأفق الآن، ولا خلال الأربعين يوماً القادمة من هذا المكان.';
+    host.appendChild(e);
+  }
+
+  if (down.length) {
+    head('تحت الأفق', '');
+    for (const r of down) {
+      const w = back[r.t.id];
+      const txt = r.p.stale ? 'بلا اتصال'
+        : w ? howFar(w, now)
+        : 'لا تُرى من هنا';
+      row(r, txt, 'down');
+    }
+  }
 }
 function toggleLog(on) {
   const el = $('log');
   const show = on === undefined ? !el.classList.contains('on') : on;
+  if (show) buildLog();
   el.classList.toggle('on', show);
 }
+// the highest thing above her horizon that she has not found yet,
+// falling back to the highest thing above her horizon at all
+function aimAtSomethingUp() {
+  const now = new Date();
+  let best = -1, bestAlt = MIN_ALT, seen = -1, seenAlt = MIN_ALT;
+  TARGETS.forEach((t, i) => {
+    const p = locate(t, S.obs, now);
+    if (p.stale || p.alt <= MIN_ALT) return;
+    if (!S.found.has(t.id)) { if (p.alt > bestAlt) { bestAlt = p.alt; best = i; } }
+    else if (p.alt > seenAlt) { seenAlt = p.alt; seen = i; }
+  });
+  const pick = best >= 0 ? best : seen;
+  if (pick < 0) return false;
+  selectTarget(pick);
+  return true;
+}
+
 function selectTarget(i) {
   S.idx = i;
+  const t = TARGETS[i];
+  S.backAt = null;
+  if (t.kind !== 'sat') {
+    const now = new Date();
+    if (locate(t, S.obs, now).alt <= MIN_ALT)
+      S.backAt = nextObservable([t], S.obs, now)[t.id] || null;
+  }
   S.locked = false; S.lockHold = 0;
   document.body.classList.remove('locked');
   $('found').classList.remove('on');
@@ -388,25 +602,139 @@ async function findPass() {
   try { S.issPass = await nextPass(S.lat, S.lon); } catch (_) { S.issPass = null; }
 }
 
+// ---------------------------------------------------------------- loading
+//  The percentage is real: each step reports when it has actually landed,
+//  and the last one only fires after a frame has been drawn.
+const STEPS = [
+  ['engine',    'أُجهّز المُحرّك…'],
+  ['fonts',     'أستدعي الحروف…'],
+  ['catalogue', 'أنزّل فهرس النجوم…'],
+  ['scene',     'أبني القبّة…'],
+  ['first',     'أفتح السقف…'],
+];
+const done = new Set();
+function step(id) {
+  if (done.has(id)) return;
+  done.add(id);
+  const k = done.size / STEPS.length;
+  $('bootFill').style.width = (k * 100).toFixed(0) + '%';
+  $('bootPct').textContent = arNum(Math.round(k * 100)) + '٪';
+  $('bootArc').setAttribute('stroke-dasharray', `${(k * 578).toFixed(1)} 578`);
+  const nextStep = STEPS.find(sp => !done.has(sp[0]));
+  $('bootWhat').textContent = nextStep ? nextStep[1] : 'السماء جاهزة لكِ.';
+  if (done.size === STEPS.length) $('bootGo').classList.add('ready');
+}
+
+// ---------------------------------------------------------------- the arrival
+//  Wall-clock phases, so a slow phone gets the same fifteen seconds at
+//  fewer frames rather than a different journey.
+const PHASES = [
+  { id: 'worm',  t: 3.6, k: 'Traversing',      v: 'ثقبٌ دودي' },
+  { id: 'earth', t: 4.4, k: 'Earth',           v: 'الأرض' },
+  { id: 'dive',  t: 3.2, k: 'Riyadh',          v: 'الرياض' },
+  { id: 'yard',  t: 4.6, k: 'The Observatory', v: 'مِرصَدُكِ' },
+];
+let flyIdx = -1, flyStart = 0;
+
+function enterPhase(i) {
+  flyIdx = i; flyStart = performance.now();
+  if (i >= PHASES.length) { flight.visible = false; arrive(); return; }
+  const p = PHASES[i];
+  $('capK').textContent = p.k;
+  $('capV').textContent = p.v;
+  $('flight').classList.add('on');
+  if (p.id === 'yard') { localGroup.visible = true; skyGroup.visible = true; }
+}
+
+function flyFrame(now, time) {
+  const p = PHASES[flyIdx];
+  const el = (performance.now() - flyStart) / 1000;
+  const k = THREE.MathUtils.clamp(el / p.t, 0, 1);
+  const ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+
+  if (p.id === 'worm') {
+    worm.visible = true;
+    grade.uniforms.uRush.value = 0.35 + Math.sin(k * Math.PI) * 0.5;
+    worm.userData.mat.uniforms.uTime.value = time;
+    worm.userData.debrisMat.uniforms.uTime.value = time;
+    camera.position.set(Math.sin(time * 0.9) * 0.5, FLY_Y + Math.cos(time * 0.75) * 0.5,
+      210 - ease * 420);
+    camera.lookAt(0, FLY_Y, camera.position.z - 60);
+    camera.rotation.z = Math.sin(time * 0.55) * 0.2 + k * 0.45;
+    camera.fov = 62 + Math.sin(k * Math.PI) * 32;
+    camera.updateProjectionMatrix();
+    const out = THREE.MathUtils.clamp((el - (p.t - 0.8)) / 0.8, 0, 1);
+    worm.userData.mat.uniforms.uFade.value = 1 - out * 0.5;
+    worm.userData.debrisMat.uniforms.uFade.value = 1 - out;
+
+  } else if (p.id === 'earth') {
+    worm.visible = false;
+    grade.uniforms.uRush.value *= 0.90;
+    camera.position.set(0, FLY_Y, -180 - ease * 590);
+    camera.lookAt(0, FLY_Y, -900);
+    camera.rotation.z = (1 - ease) * 0.4;
+    camera.fov = 58; camera.updateProjectionMatrix();
+    earth.rotation.y = S.markY + (1 - ease) * 0.55;   // turning her side towards us
+
+  } else if (p.id === 'dive') {
+    camera.position.set(0, FLY_Y, -770 - ease * 92);
+    camera.lookAt(0, FLY_Y, -900);
+    camera.fov = 58 - ease * 22; camera.updateProjectionMatrix();
+    earth.rotation.y = S.markY;
+    if (k > 0.72) {   // the last moment: the limb swallows the frame
+      document.body.style.setProperty('--flash', String((k - 0.72) / 0.28));
+      $('flight').style.opacity = String(1 - (k - 0.72) / 0.28);
+    }
+
+  } else if (p.id === 'yard') {
+    flight.visible = false;
+    grade.uniforms.uRush.value = 0;
+    $('flight').style.opacity = '';
+    // she is standing there, the dome beside her. The camera holds on the dome,
+    // then walks the last few metres and lifts its eyes to the sky.
+    const hold = THREE.MathUtils.clamp((ease - 0.55) / 0.45, 0, 1);
+    const lift = hold * hold * (3 - 2 * hold);
+    // far enough back that the dome fits a portrait phone's narrow horizontal
+    // field, which is about 21° at this focal length
+    const from = new THREE.Vector3(4.4, 3.1, 5.6), to = new THREE.Vector3(0, 1.62, 0);
+    camera.position.lerpVectors(from, to, ease);
+    camera.fov = 42 + ease * 24; camera.updateProjectionMatrix();
+    camera.up.set(0, 1, 0);
+    const look = new THREE.Vector3(-5.4, 1.9, -9.6)
+      .lerp(new THREE.Vector3(0.9, 5.2, -7.0), lift);
+    camera.lookAt(look);
+  }
+
+  if (k >= 1) enterPhase(flyIdx + 1);
+}
+
+// the earth's marker follows wherever she actually turned out to be
+function markHer() {
+  const la = S.lat * D2R, lo = S.lon * D2R;
+  const v = new THREE.Vector3(Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo));
+  earth.userData.globe.material.uniforms.uMark.value.copy(v);
+  S.markY = -lo;                 // turn that meridian to face the camera
+  earth.rotation.y = S.markY;
+}
+
 // ---------------------------------------------------------------- start
 async function begin() {
   if (S.started) return;
   S.started = true;
-  $('openHint').textContent = '…';
 
   // iOS only grants the motion sensors if we ask inside her tap, before
   // anything is awaited — so this comes first, and location follows.
   const motion = attachMotion();
 
-  await new Promise(res => {
-    if (!navigator.geolocation) return res();
-    const to = setTimeout(res, 9000);
-    navigator.geolocation.getCurrentPosition(p => {
-      clearTimeout(to);
-      S.lat = p.coords.latitude; S.lon = p.coords.longitude; S.placed = true;
-      res();
-    }, () => { clearTimeout(to); res(); }, { enableHighAccuracy: false, timeout: 8000 });
+  // refined, not guessed — see place.js
+  const fix = await acquire(better => {          // a better fix may still arrive
+    S.place = better; S.lat = better.lat; S.lon = better.lon;
+    S.obs = new Astro.Observer(S.lat, S.lon, 600);
+    if ($('brief').classList.contains('on')) showBrief();
   });
+  S.place = fix;
+  S.lat = fix.lat; S.lon = fix.lon;
+  S.placed = fix.source !== 'default';
   S.obs = new Astro.Observer(S.lat, S.lon, 600);
   await motion.catch(() => {});
   // give the sensor a moment to say whether it is there at all
@@ -414,19 +742,44 @@ async function begin() {
 
   pollISS();
   findPass();
+  markHer();
+}
 
-  $('open').classList.add('gone');
-  showBrief();
+// she has landed: first the briefing, then she looks up
+function arrive() {
+  $('flight').classList.remove('on');
+  $('skip').classList.remove('on');
+  $('flight').style.opacity = '';
+  camera.fov = 66; camera.position.set(0, 1.62, 0); camera.updateProjectionMatrix();
+  camera.lookAt(new THREE.Vector3(Math.sin(S.yaw), Math.sin(S.pitch), -Math.cos(S.yaw))
+    .add(camera.position));
+  S.phase = 'sky';
+  $('letter').classList.add('on');     // his words first; the sky can wait a moment
 }
 
 function enterSky() {
   $('brief').classList.remove('on');
   $('hud').classList.add('on');
-  refreshHud();
+  if (!aimAtSomethingUp()) refreshHud();
 
   const note = [];
   if (!S.placed) note.push('لم يصلني موقعكِ، فحسبتُ سماء الرياض. لو سمحتِ بالموقع سترين سماءكِ أنتِ بالضبط.');
+  else if (S.place && S.place.accM > USABLE_M)
+    note.push('موقعكِ وصلني تقريبياً فقط. اخرجي إلى مكانٍ مكشوف لحظة وسيضبط نفسه.');
   if (!S.useMotion) note.push('جوالكِ لا يعطيني اتجاهه، فاسحبي بإصبعكِ لتلفّي في السماء.');
+  else setTimeout(() => {
+    if (S.hasNorth) return;
+    $('note').textContent = 'جوالكِ لا يعطيني بوصلته، فالجهات قد تكون مُدارة. وجّهيه نحو الشمال والمسي هنا لأضبطها.';
+    $('note').classList.add('on');
+    $('note').style.pointerEvents = 'auto';
+    $('note').onclick = () => {                 // she is facing north: so this is north
+      const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      S.northOff = -Math.atan2(f.x, -f.z);
+      S.hasNorth = true;
+      $('note').textContent = 'ضُبِطَت. الشمال أمامكِ الآن.';
+      setTimeout(() => $('note').classList.remove('on'), 3000);
+    };
+  }, 4000);
   if (note.length) {
     $('note').textContent = note.join(' ');
     $('note').classList.add('on');
@@ -450,9 +803,11 @@ function showBrief() {
   if (S.back === undefined) S.back = sinceLast(S.obs, now);
   const back = S.back;
 
+  const pl = S.place || { source: 'default' };
   $('bWhere').innerHTML = S.placed
-    ? `موقعكِ الآن ${num(arNum(Math.abs(S.lat).toFixed(2)) + '°')}${S.lat >= 0 ? ' شمالاً' : ' جنوباً'}`
-      + ` و${num(arNum(Math.abs(S.lon).toFixed(2)) + '°')}${S.lon >= 0 ? ' شرقاً' : ' غرباً'}،`
+    ? `موقعكِ ${num(arNum(Math.abs(S.lat).toFixed(3)) + '°')}${S.lat >= 0 ? ' شمالاً' : ' جنوباً'}`
+      + ` و${num(arNum(Math.abs(S.lon).toFixed(3)) + '°')}${S.lon >= 0 ? ' شرقاً' : ' غرباً'}`
+      + ` <span class="soft">(${placeName(pl)})</span>،`
       + ` والساعة عندكِ ${num(hhmm(now))}.`
     : `لم يصلني موقعكِ، فحسبتُ لكِ سماء <b>الرياض</b>، والساعة ${num(hhmm(now))}.`;
   $('bSky').innerHTML = `<b>${st.name}</b><br>${st.note}`;
@@ -502,18 +857,51 @@ function paintISS() {
   el.innerHTML = line;
 }
 
-$('beginBtn').addEventListener('click', begin);
+$('beginBtn').addEventListener('click', () => {
+  if (S.started) return;
+  begin();                                  // permissions and location, in the background
+  $('boot').classList.add('gone');
+  $('skip').classList.add('on');
+  localGroup.visible = false; skyGroup.visible = false;
+  flight.visible = true;
+  enterPhase(0);
+});
+$('skip').addEventListener('click', () => {
+  if (flyIdx < 0 || flyIdx >= PHASES.length) return;
+  flight.visible = false;
+  localGroup.visible = true; skyGroup.visible = true;
+  $('flight').style.opacity = '';
+  enterPhase(PHASES.length);
+});
 $('briefGo').addEventListener('click', () => {
   if ($('hud').classList.contains('on')) $('brief').classList.remove('on');
   else enterSky();
 });
+$('letterGo').addEventListener('click', () => {
+  $('letter').classList.remove('on');
+  setTimeout(showBrief, 450);
+});
 $('briefBtn').addEventListener('click', showBrief);
+// the "show me what is up" way out of a target that is under the ground
+$('prompt').addEventListener('click', e => {
+  if (e.target && e.target.id === 'jump') { if (!aimAtSomethingUp()) toggleLog(true); }
+});
 // while she is reading it, it keeps rewriting itself — the sky is moving
 setInterval(() => { if ($('brief').classList.contains('on')) showBrief(); }, 20000);
 $('logBtn').addEventListener('click', () => toggleLog());
 $('logClose').addEventListener('click', () => toggleLog(false));
 $('nextBtn').addEventListener('click', () => {
-  // move to the next thing still unfound
+  const now = new Date();
+  // the next thing she has not found *and* can actually see
+  for (let k = 1; k <= TARGETS.length; k++) {
+    const i = (S.idx + k) % TARGETS.length;
+    const t = TARGETS[i];
+    if (S.found.has(t.id)) continue;
+    const p = locate(t, S.obs, now);
+    if (!p.stale && p.alt > MIN_ALT) { selectTarget(i); return; }
+  }
+  // nothing left overhead — take her to whatever is still unfound, and the
+  // prompt will tell her when it rises
   for (let k = 1; k <= TARGETS.length; k++) {
     const i = (S.idx + k) % TARGETS.length;
     if (!S.found.has(TARGETS[i].id)) { selectTarget(i); return; }
@@ -532,19 +920,28 @@ function tripText(now) {
   const mi = Math.floor(ms / 60000); ms -= mi * 60000;
   const se = Math.floor(ms / 1000);
   const p = n => arNum(String(n).padStart(2, '0'));
-  return `${arNum(y)} سنة · ${arNum(d)} يوم · ${p(h)}:${p(mi)}:${p(se)}.${arNum(Math.floor((ms % 1000) / 100))}`;
+  return `${arNum(y)} سنة و${arNum(d)} يوماً و`
+       + `<b class="n">${p(h)}:${p(mi)}:${p(se)}.${arNum(Math.floor((ms % 1000) / 100))}</b>`;
 }
 
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock();
-let riseCache = { at: 0, when: null, id: null };
 
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
   const time = clock.elapsedTime;
   const now = new Date();
-  if (!S.ready || !S.obs) { renderer.render(scene, camera); return; }
+
+  grade.uniforms.uTime.value = time;
+
+  if (flyIdx >= 0 && flyIdx < PHASES.length) {
+    flyFrame(now, time);
+    if (starMat) starMat.uniforms.uTime.value = time;
+    composer.render();
+    return;
+  }
+  if (!S.ready || !S.obs) { composer.render(); step('first'); return; }
 
   starMat.uniforms.uTime.value = time;
   LIVE.iss = issAtNow(+now);
@@ -571,8 +968,24 @@ function frame() {
   }
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
   const lookAlt = Math.asin(THREE.MathUtils.clamp(fwd.y, -1, 1)) * R2D;
-  let lookAz = ((Math.atan2(fwd.x, -fwd.z) * R2D) % 360 + 360) % 360;
-  updateBand(S.heading != null ? S.heading : lookAz);
+  const camAz = ((Math.atan2(fwd.x, -fwd.z) * R2D) % 360 + 360) % 360;
+
+  // ---- align the world with true north
+  //  An object at true azimuth A is drawn at scene azimuth A - world.rotation.y,
+  //  so setting that to (heading - camAz) puts what the phone says it is looking
+  //  at exactly under the reticle. Without a compass the offset stays zero and
+  //  the scene is at least self-consistent.
+  if (S.heading != null) {
+    let want = (S.heading - camAz) * D2R;
+    let d = want - S.northOff;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    S.northOff += d * (1 - Math.exp(-dt * 2.2));      // ease, so it never snaps
+    S.hasNorth = true;
+  }
+  world.rotation.y = S.northOff;
+  const lookAz = ((camAz + S.northOff * R2D) % 360 + 360) % 360;   // where she is truly looking
+  updateBand(lookAz);
 
   // ---- place every target where it truly is, and light the chosen one
   const active = TARGETS[S.idx];
@@ -613,7 +1026,9 @@ function frame() {
   const tdir = dirFromAzAlt(aAz, aAlt);
   const pv = tdir.clone().multiplyScalar(R * 0.96).project(camera);
   const onScreen = pv.z < 1 && Math.abs(pv.x) < 0.7 && Math.abs(pv.y) < 0.66;
-  if (!onScreen && !S.locked) {
+  // it is under the ground: there is nothing to turn towards, and an arrow
+  // pointing at her feet is worse than no arrow at all
+  if (!onScreen && !S.locked && aAlt > MIN_ALT) {
     const dc = tdir.clone().applyQuaternion(camera.quaternion.clone().invert());
     const a = Math.atan2(dc.y, dc.x);
     const rad = Math.min(innerWidth, innerHeight) * 0.30;
@@ -624,7 +1039,7 @@ function frame() {
 
   // ---- holding the aim is what counts as finding it
   const LOCK = 7;
-  if (!S.locked && sep < LOCK && aAlt > 2) {
+  if (!S.locked && sep < LOCK && aAlt > MIN_ALT) {
     S.lockHold += dt;
     if (S.lockHold > 1.1) {
       S.locked = true;
@@ -640,20 +1055,18 @@ function frame() {
   // ---- what to say
   const pr = $('prompt');
   if (S.locked) pr.classList.remove('on');
-  else if (aAlt < 0) {
+  else if (aAlt < MIN_ALT) {
     pr.classList.add('on');
-    if (riseCache.id !== active.id || now - riseCache.at > 120000) {
-      riseCache = { id: active.id, at: +now, when: nextRise(active, S.obs, now) };
-    }
     if (active.kind === 'sat') {
       pr.innerHTML = !LIVE.iss ? 'أسأل عن المحطة…'
         : (S.issPass && S.issPass.visible && S.issPass.rise)
           ? `المحطة خلف الأفق · تمرّ فوقكِ <em>${hhmm(new Date(S.issPass.rise))}</em>`
           : 'المحطة خلف الأفق الآن · تدور حول الأرض كل ٩٣ دقيقة';
     } else {
-      const w = hhmm(riseCache.when);
-      pr.innerHTML = w ? `${active.ar} تحت الأفق الآن · يشرق <em>${w}</em>`
-                       : `${active.ar} تحت الأفق الآن`;
+      const w = S.backAt;   // the same figure the list gives her, never a second opinion
+      pr.innerHTML = (w ? `${active.ar} ليست في سمائكِ الآن · تعود <em>${howFar(w, now)}</em>`
+                        : `${active.ar} ليست في سمائكِ الآن`)
+        + `<br><u id="jump">اعرضي ما فوقكِ الآن</u>`;
     }
   } else {
     pr.classList.add('on');
@@ -669,22 +1082,14 @@ function frame() {
     `${S.lat.toFixed(3)}°${S.lat >= 0 ? 'N' : 'S'} ${Math.abs(S.lon).toFixed(3)}°${S.lon >= 0 ? 'E' : 'W'}`
     + `<br>LST <b>${(((gmst(now) + S.lon) % 360 + 360) % 360 / 15).toFixed(2)}h</b>`
     + `<br>${active.lat}`;
-  $('tripV').textContent = tripText(now);
+  $('tripV').innerHTML = tripText(now);
 
-  // the log's live altitudes
-  if ($('log').classList.contains('on')) {
-    const rows = $('logList').children;
-    for (let i = 0; i < rows.length; i++) {
-      const p = locate(TARGETS[i], S.obs, now);
-      const a = rows[i].querySelector('.lg-a');
-      a.textContent = p.stale ? 'بلا اتصال' : p.alt > 2 ? `${p.alt.toFixed(0)}°` : 'تحت الأفق';
-      rows[i].classList.toggle('down', p.stale || p.alt <= 2);
-      rows[i].classList.toggle('seen', S.found.has(TARGETS[i].id));
-      rows[i].classList.toggle('cur', i === S.idx);
-    }
-  }
+  // mark which row she is currently aimed at
+  if ($('log').classList.contains('on'))
+    for (const r of $('logList').querySelectorAll('.logRow'))
+      r.classList.toggle('cur', +r.dataset.i === S.idx);
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 // ---------------------------------------------------------------- the card
@@ -706,15 +1111,21 @@ function showFound(t, distAu, now) {
 }
 
 // ---------------------------------------------------------------- go
+step('engine');
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => step('fonts'));
+else step('fonts');
+setTimeout(() => step('fonts'), 4000);      // never let a slow CDN hold the door shut
+
 fetch('./livesky.json').then(r => r.json()).then(d => {
+  step('catalogue');
   buildSky(d);
   buildMarks();
   buildMoon();
   buildBand();
-  buildLog();
+  step('scene');
   S.ready = true;
 }).catch(() => {
-  $('open').innerHTML = '<div class="box"><div class="bd">تعذّر تحميل السماء. جرّبي تحديث الصفحة.</div></div>';
+  $('bootWhat').textContent = 'تعذّر تحميل فهرس النجوم. جرّبي تحديث الصفحة.';
 });
 
 frame();

@@ -23,6 +23,14 @@
   --ui:'Thmanyah Sans','IBM Plex Sans Arabic',system-ui,sans-serif;
   --mono:ui-monospace,'SF Mono','Roboto Mono',Menlo,monospace;
 
+  /* the plate: warm rag paper, iron-gall ink, one oxidised copper accent */
+  --paper:#e7e0cf;
+  --plate-ink:#141d2e;
+  --plate-soft:rgba(20,29,46,.52);
+  --plate-hair:rgba(20,29,46,.20);
+  --copper:#9a6a3c;
+
+  /* the sky: the same ink, inverted */
   --ink:#04050a;
   --ivory:#f2ece1;
   --dim:rgba(242,236,225,.56);
@@ -88,57 +96,117 @@ html, body {
 }
 
 /* ============================================================
-   ١ · the way in — a loading page, then the flight
+   ١ · الصفيحة — the way in
+   Not a dark landing page with a glowing ring. A plate out of an
+   engraved star atlas: rag paper, hairline copperplate ruling, the
+   title set like a plate title, the catalogue line in the margin.
+   Pressing it drains the light out of the paper and the sky opens.
    ============================================================ */
 #boot {
-  position:fixed; inset:0; z-index:90; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:0;
-  background:
-    radial-gradient(ellipse 92% 62% at 50% 38%, rgba(255,183,101,.06), transparent 70%),
-    var(--ink);
-  transition:opacity 1.1s ease, visibility 0s linear 0s;
+  position:fixed; inset:0; z-index:90; overflow:hidden;
+  background:var(--paper); color:var(--plate-ink);
+  /* the ground must go dark FIRST and the ink follow it, or the two cross
+     over in the middle and everything disappears into pale nothing */
+  transition:background .8s cubic-bezier(.4,0,.2,1);
 }
-/* visibility, not just pointer-events: a faded layer that still answers taps
-   swallows the clicks meant for whatever is behind it */
+/* the grain of the paper, and the press of the plate into it */
+#boot::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  opacity:.5; mix-blend-mode:multiply;
+  transition:opacity .8s ease;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  transition:opacity 1.2s ease;
+}
+#boot::after {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(ellipse 78% 62% at 50% 44%,
+    transparent 40%, rgba(58,44,24,.13) 78%, rgba(38,28,16,.30) 100%);
+  transition:opacity 1.2s ease;
+}
+body.opening #boot { background:#04050a; color:var(--ivory); }
+body.opening #boot::before { opacity:.10; }
+body.opening #boot::after  { opacity:0; }
 #boot.gone { opacity:0; visibility:hidden; pointer-events:none;
-  transition:opacity 1.1s ease, visibility 0s linear 1.1s; }
-#bootMark { display:flex; flex-direction:column; align-items:center; gap:1.6vh; }
-#bootMark .k { font-size:9px; letter-spacing:.44em; }
-#bootTitle {
-  font-family:var(--display); font-weight:400;
-  font-size:clamp(2.1rem,7.4vh,4.2rem); line-height:1.15; color:var(--ivory);
-  text-shadow:0 0 70px rgba(255,196,130,.22);
-}
-/* a ring of ticks, like a dome's bearing ring */
-#bootRing { position:absolute; left:50%; top:50%; width:min(86vmin,520px); height:min(86vmin,520px);
-  transform:translate(-50%,-50%) translateY(-7vh); pointer-events:none; opacity:.55; }
-#bootRing circle { fill:none; stroke:var(--hair); }
-#bootRing .arc { stroke:var(--ember); stroke-linecap:round; opacity:.9;
-  filter:drop-shadow(0 0 8px rgba(255,183,101,.7)); transform:rotate(-90deg);
-  transform-origin:50% 50%; }
+  transition:opacity 1.05s ease, visibility 0s linear 1.05s; }
 
-#bootMark { transform:translateY(-7vh); }
-#bootMeter { position:absolute; left:50%; transform:translateX(-50%);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 22vh);
-  width:min(30ch,74vw); display:flex; flex-direction:column; gap:1.3vh; }
-#bootBar { position:relative; height:1px; background:var(--hair); }
-#bootBar i { position:absolute; top:0; bottom:0; right:0; width:0%;
-  background:linear-gradient(270deg,var(--ember),rgba(255,183,101,.2));
-  box-shadow:0 0 12px rgba(255,183,101,.55); transition:width .45s cubic-bezier(.3,.9,.3,1); }
+/* the plate itself */
+#plate { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:min(94vmin,660px); height:min(94vmin,660px); pointer-events:none;
+  transition:opacity .8s ease, transform 1.6s cubic-bezier(.5,0,.25,1),
+             filter .7s ease; }
+#plate .rule  { fill:none; stroke:var(--plate-hair); stroke-width:.9; }
+#plate .rule2 { fill:none; stroke:var(--plate-soft); stroke-width:.9; }
+#plate .tick  { stroke:var(--plate-hair); stroke-width:.9; }
+#plate .tick.maj { stroke:var(--plate-soft); stroke-width:1.3; }
+#plate .num { fill:var(--plate-soft); font-family:var(--mono); font-size:13px;
+  letter-spacing:.1em; text-anchor:middle; dominant-baseline:middle; }
+#plate .arc { fill:none; stroke:var(--copper); stroke-width:5; stroke-linecap:round;
+  transform:rotate(-90deg); transform-origin:50% 50%;
+  transition:stroke-dasharray .5s cubic-bezier(.3,.9,.3,1); }
+body.opening #plate { transform:translate(-50%,-50%) scale(1.26); opacity:0;
+  filter:drop-shadow(0 0 7px rgba(255,183,101,.6)); }
+body.opening #plate .rule, body.opening #plate .rule2,
+body.opening #plate .tick, body.opening #plate .num { stroke:var(--ember); fill:var(--ember); }
+
+/* the title, set like a plate title */
+#bootMark { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:1.5vh;
+  text-align:center; pointer-events:none; }
+/* the title clears its own ground the way overprinted type does */
+#bootTitle, #bootSub, #plateNo {
+  text-shadow:0 0 18px var(--paper), 0 0 34px var(--paper), 0 0 8px var(--paper); }
+#plateNo { font-family:var(--mono); font-size:10px; letter-spacing:.42em;
+  direction:ltr; color:var(--plate-soft); transition:color .9s ease .18s; }
+#bootTitle { font-family:var(--display); font-weight:400;
+  font-size:clamp(2.4rem,8.4vh,4.6rem); line-height:1.1; color:var(--plate-ink);
+  transition:color .9s ease .18s, text-shadow .7s ease; }
+body.opening #bootTitle, body.opening #bootSub, body.opening #plateNo {
+  text-shadow:0 0 50px rgba(255,196,130,.30); }
+#bootSub { font-family:var(--ui); font-weight:300;
+  font-size:clamp(.8rem,1.9vh,.95rem); color:var(--plate-soft);
+  transition:color .9s ease .18s; }
+#bootDiv { width:min(200px,34vw); height:1px; background:var(--plate-hair);
+  position:relative; }
+#bootDiv::before, #bootDiv::after { content:''; position:absolute; top:-2px;
+  width:5px; height:5px; background:var(--copper); transform:rotate(45deg); }
+#bootDiv::before { left:-2px; } #bootDiv::after { right:-2px; }
+body.opening #plateNo, body.opening #bootSub { color:var(--soft); }
+body.opening #bootTitle { color:var(--ivory); }
+
+/* the margin: catalogue line, percentage, and what is being fetched */
+#bootMeter { position:absolute; left:0; right:0; margin:0 auto; pointer-events:none;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 15vh);
+  width:min(34ch,80vw); display:flex; flex-direction:column; gap:1.1vh; }
 #bootRow { display:flex; align-items:baseline; justify-content:space-between; gap:1rem; }
-#bootPct { font-family:var(--mono); font-size:clamp(.9rem,2.4vh,1.2rem); color:var(--ember);
-  direction:ltr; unicode-bidi:isolate; font-variant-numeric:tabular-nums; }
-#bootWhat { font-size:clamp(.72rem,1.7vh,.86rem); color:var(--soft); }
+#bootPct { font-family:var(--mono); font-size:clamp(.86rem,2.2vh,1.1rem);
+  color:var(--copper); direction:ltr; unicode-bidi:isolate;
+  font-variant-numeric:tabular-nums; transition:color .9s ease .18s; }
+#bootWhat { font-family:var(--ui); font-weight:300;
+  font-size:clamp(.72rem,1.7vh,.85rem); color:var(--plate-soft);
+  transition:color .9s ease .18s; }
+#bootCat { font-family:var(--mono); font-size:9px; letter-spacing:.22em;
+  direction:ltr; color:var(--plate-soft); text-align:center;
+  transition:color .9s ease .18s; }
+body.opening #bootPct { color:var(--ember); }
+body.opening #bootWhat, body.opening #bootCat { color:var(--soft); }
+
 #bootGo { position:absolute; left:50%; transform:translateX(-50%);
-  bottom:calc(env(safe-area-inset-bottom,0px) + 12vh);
+  bottom:calc(env(safe-area-inset-bottom,0px) + 7.5vh);
   opacity:0; transition:opacity .9s ease; }
 #bootGo.ready { opacity:1; }
 #bootGo.ready .act { pointer-events:auto; }
-/* decoration must never sit on top of the only thing she can press */
+/* on the plate the action is engraved, not glowing */
+#boot .act { color:var(--plate-ink); font-weight:500; transition:color .9s ease .18s; }
+#boot .act::before, #boot .act::after { background:var(--copper); }
+#boot .act > i { background:var(--plate-hair); }
+body.opening #boot .act { color:var(--ivory); }
+
 #bootNote { position:absolute; left:0; right:0; margin:0 auto; pointer-events:none;
-  bottom:calc(env(safe-area-inset-bottom,0px) + 18px); width:min(40ch,84vw);
-  font-size:clamp(.66rem,1.55vh,.78rem); line-height:1.85; color:var(--soft); text-align:center; }
-#bootMeter, #bootMark, #bootRing { pointer-events:none; }
+  bottom:calc(env(safe-area-inset-bottom,0px) + 2.6vh); width:min(40ch,84vw);
+  font-family:var(--ui); font-weight:300;
+  font-size:clamp(.66rem,1.5vh,.76rem); line-height:1.8;
+  color:var(--plate-soft); text-align:center; transition:color .9s ease .18s; }
+body.opening #bootNote { color:var(--soft); }
 
 /* the flight's captions */
 #flight { position:fixed; inset:0; z-index:60; pointer-events:none;
@@ -356,24 +424,21 @@ body.locked #prompt, body.locked #arrow { opacity:0 !important; }
 <body>
 <canvas id="sky"></canvas>
 
-<!-- ١ · loading ------------------------------------------------ -->
+<!-- ١ · الصفيحة ---------------------------------------------- -->
 <div id="boot">
-  <svg id="bootRing" viewBox="0 0 200 200">
-    <circle cx="100" cy="100" r="92"/>
-    <circle class="arc" id="bootArc" cx="100" cy="100" r="92"
-            stroke-width="1.6" stroke-dasharray="0 578"/>
-  </svg>
+  <svg id="plate" viewBox="0 0 1000 1000" aria-hidden="true"></svg>
   <div id="bootMark" class="rise">
-    <span class="k">The Observatory</span>
-    <div id="bootTitle">مِرصَد نُورة</div>
-    <div class="hr lit" style="width:min(220px,40vw)"></div>
+    <span id="plateNo">Plate I</span>
+    <h1 id="bootTitle">مِرصَد نُورة</h1>
+    <div id="bootDiv"></div>
+    <span id="bootSub">مِرصدٌ يعرف مكانَكِ وساعتَكِ، ويحسب سماءكِ أنتِ</span>
   </div>
   <div id="bootMeter">
-    <div id="bootBar"><i id="bootFill"></i></div>
     <div id="bootRow">
       <span id="bootPct">٠٪</span>
       <span id="bootWhat">أفتح السماء…</span>
     </div>
+    <div id="bootCat">RIYADH · 24.7136°N 46.6753°E</div>
   </div>
   <div id="bootGo"><span class="act" id="beginBtn">ادخلي المرصد<i></i></span></div>
   <div id="bootNote">سيطلب منكِ الجوال إذن الموقع والحركة — وبدونهما لا يعرف المرصد أين يوجّه نظره.</div>

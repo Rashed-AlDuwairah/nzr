@@ -1,0 +1,4 @@
+earth_day.jpg, earth_night.jpg, earth_brc.jpg, earth_normal.jpg, moon.jpg
+  Resized from the texture set shipped with the three.js examples
+  (github.com/mrdoob/three.js, MIT). The source imagery is NASA
+  Visible Earth / Blue Marble and NASA CGI Moon Kit, public domain.

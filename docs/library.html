@@ -59,18 +59,29 @@ html, body {
 /* ---------- the room's own chrome ---------- */
 .ui { position:fixed; z-index:20; }
 
-/* what she is standing in front of */
-#spots { top:calc(env(safe-area-inset-top,0px) + 14px); left:0; right:0;
-  display:flex; justify-content:center; gap:0; flex-wrap:wrap; }
-.spot { all:unset; cursor:pointer; padding:.55rem .95rem; position:relative;
+/* Where she is standing. The bar itself must not take taps — only its
+   buttons do — or a book that happens to sit behind it cannot be opened. */
+#spots { top:calc(env(safe-area-inset-top,0px) + 12px); left:0; right:0;
+  display:flex; align-items:center; justify-content:center; gap:0;
+  pointer-events:none; }
+#spots > * { pointer-events:auto; }
+.spot, .step { all:unset; cursor:pointer; position:relative;
   font-family:var(--ui); font-weight:400; font-size:clamp(.74rem,1.7vh,.86rem);
   color:var(--cream-soft); text-shadow:0 1px 10px #000; transition:color .3s ease; }
-.spot + .spot::after { content:''; position:absolute; right:0; top:30%; bottom:30%;
-  width:1px; background:var(--cream-hair); }
-.spot:hover { color:var(--cream); }
+.spot { padding:.55rem .9rem; }
+.step { padding:.5rem .7rem; font-size:1.15rem; line-height:1; }
+.step.off { opacity:.22; pointer-events:none; }
+.spot:hover, .step:hover { color:var(--cream); }
 .spot.on { color:var(--cream); }
-.spot.on::before { content:''; position:absolute; left:.95rem; right:.95rem; bottom:.28rem;
+.spot.on::before { content:''; position:absolute; left:.9rem; right:.9rem; bottom:.3rem;
   height:1px; background:var(--brass); }
+#shelfWrap { display:inline-flex; align-items:baseline; gap:.45rem; padding:.55rem .2rem;
+  color:var(--cream-soft); font-size:clamp(.74rem,1.7vh,.86rem);
+  text-shadow:0 1px 10px #000; pointer-events:none; }
+#shelfWrap.on { color:var(--cream); }
+#shelfPos { font-weight:500; color:var(--brass); }
+.sep { width:1px; height:1.1em; margin:0 .55rem; background:var(--cream-hair);
+  pointer-events:none; }
 
 /* the tally, low and quiet */
 #tally { bottom:calc(env(safe-area-inset-bottom,0px) + 16px); left:0; right:0;
@@ -170,7 +181,14 @@ body.read1 #hint { opacity:0; }
   <p>أُرتّب الرفوف…</p>
 </div>
 
-<div class="ui" id="spots"></div>
+<div class="ui" id="spots">
+  <button class="step" id="stepL" aria-label="يسار">‹</button>
+  <span id="shelfWrap"><span id="shelfLabel">الرفوف</span><span id="shelfPos"></span></span>
+  <button class="step" id="stepR" aria-label="يمين">›</button>
+  <span class="sep"></span>
+  <button class="spot" id="goDesk">المكتب</button>
+  <button class="spot" id="goWindow">النافذة</button>
+</div>
 <div class="ui" id="cursor"></div>
 <div class="ui" id="hint">اسحبي بإصبعكِ لتنظري حولكِ · والمسي أي كتابٍ يعجبكِ لتفتحيه</div>
 <div class="ui" id="tally"><span id="count">٠ من ١٤</span><span id="track"></span></div>

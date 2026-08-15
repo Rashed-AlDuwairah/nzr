@@ -58,12 +58,12 @@ export function woodTexture(scale = 1) {
 // wool rug: a flat weave with a border
 export function rugTexture() {
   return noiseCanvas(512, 512, (g, w, h) => {
-    g.fillStyle = '#4a2a26'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#3a2622'; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 4000; i++) {
-      g.fillStyle = `rgba(${Math.random() < .5 ? '30,16,14' : '120,70,58'},${RND(0.04, 0.18)})`;
+      g.fillStyle = `rgba(${Math.random() < .5 ? '24,15,13' : '92,62,52'},${RND(0.04, 0.18)})`;
       g.fillRect(Math.random() * w, Math.random() * h, RND(1, 5), RND(1, 2));
     }
-    g.strokeStyle = 'rgba(190,150,100,.28)'; g.lineWidth = 7;
+    g.strokeStyle = 'rgba(160,128,88,.22)'; g.lineWidth = 7;
     g.strokeRect(28, 28, w - 56, h - 56);
     g.lineWidth = 2; g.strokeRect(44, 44, w - 88, h - 88);
   });
@@ -72,9 +72,9 @@ export function rugTexture() {
 // plaster: almost flat, but never perfectly
 export function plasterTexture() {
   return noiseCanvas(256, 256, (g, w, h) => {
-    g.fillStyle = '#2a2622'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#26241f'; g.fillRect(0, 0, w, h);
     for (let i = 0; i < 6000; i++) {
-      g.fillStyle = `rgba(${Math.random() < .5 ? '18,16,14' : '60,55,48'},${RND(0.02, 0.10)})`;
+      g.fillStyle = `rgba(${Math.random() < .5 ? '16,15,13' : '52,50,45'},${RND(0.02, 0.10)})`;
       g.fillRect(Math.random() * w, Math.random() * h, RND(1, 3), RND(1, 3));
     }
   });
@@ -209,7 +209,7 @@ export function buildBook(book, h, w, plainIdx) {
 //  x, the shelf wall is at -z, the window at +z.
 export function buildRoom() {
   const g = new THREE.Group();
-  const W = 6.0, D = 5.2, H = 3.0;
+  const W = 6.0, D = 5.2, H = 2.74;
 
   const wood = woodTexture();
   const woodDark = woodTexture();
@@ -225,12 +225,12 @@ export function buildRoom() {
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
   g.add(floor);
 
-  const ceilMat = new THREE.MeshStandardMaterial({ map: plaster, roughness: 0.95, color: 0x6a6258 });
+  const ceilMat = new THREE.MeshStandardMaterial({ map: plaster, roughness: 1.0, color: 0x4e4a42 });
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), ceilMat);
   ceil.rotation.x = Math.PI / 2; ceil.position.y = H;
   g.add(ceil);
 
-  const wallMat = new THREE.MeshStandardMaterial({ map: plaster, roughness: 0.94, color: 0x7c7264 });
+  const wallMat = new THREE.MeshStandardMaterial({ map: plaster, roughness: 1.0, color: 0x5f5a50 });
   const wall = (w, h, x, y, z, ry) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat);
     m.position.set(x, y, z); m.rotation.y = ry;
@@ -247,7 +247,7 @@ export function buildRoom() {
     const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, 0.008), trimMat);
     m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; g.add(m);
   };
-  for (const z of [-D / 2 + 0.03, D / 2 - 0.03]) { trim(W, 0.14, 0.05, 0, 0.07, z); trim(W, 0.05, 0.04, 0, 2.42, z); }
+  for (const z of [-D / 2 + 0.03, D / 2 - 0.03]) { trim(W, 0.14, 0.05, 0, 0.07, z); trim(W, 0.05, 0.04, 0, 2.34, z); }
   for (const x of [-W / 2 + 0.03, W / 2 - 0.03]) {
     const m1 = new THREE.Mesh(new RoundedBoxGeometry(0.05, 0.14, D, 2, 0.008), trimMat);
     m1.position.set(x, 0.07, 0); g.add(m1);
@@ -313,10 +313,10 @@ export function buildShelves(room, bays = 3) {
 export function buildDesk(room) {
   const g = new THREE.Group();
   const mat = new THREE.MeshPhysicalMaterial({
-    map: room.userData.wood, roughness: 0.42, clearcoat: 0.55, clearcoatRoughness: 0.3,
+    map: room.userData.wood, roughness: 0.62, clearcoat: 0.25, clearcoatRoughness: 0.5,
   });
   const leather = new THREE.MeshPhysicalMaterial({
-    color: 0x3a2a22, roughness: 0.72, clearcoat: 0.2,
+    color: 0x2e211b, roughness: 0.85, clearcoat: 0.1,
   });
   const brass = new THREE.MeshPhysicalMaterial({
     color: 0xb08a48, roughness: 0.28, metalness: 1.0,
@@ -357,7 +357,7 @@ export function buildDesk(room) {
   bulb.position.set(-0.52, 1.07, -0.12); g.add(bulb);
 
   // an open book left on the desk, and a cup
-  const openMat = new THREE.MeshStandardMaterial({ color: 0xd9cdb0, roughness: 0.95 });
+  const openMat = new THREE.MeshStandardMaterial({ color: 0x8f836c, roughness: 1.0 });
   for (const sx of [-1, 1]) {
     const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.012, 0.24), openMat);
     leaf.position.set(0.18 + sx * 0.09, 0.775, 0.02);
@@ -365,7 +365,7 @@ export function buildDesk(room) {
     leaf.castShadow = true; leaf.receiveShadow = true; g.add(leaf);
   }
   const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.028, 0.075, 24),
-    new THREE.MeshPhysicalMaterial({ color: 0xe8e2d4, roughness: 0.25, clearcoat: 0.9 }));
+    new THREE.MeshPhysicalMaterial({ color: 0xb8b0a0, roughness: 0.35, clearcoat: 0.7 }));
   cup.position.set(0.56, 0.805, 0.16); cup.castShadow = true; g.add(cup);
 
   g.userData = { bulbPos: new THREE.Vector3(-0.52, 1.07, -0.12) };

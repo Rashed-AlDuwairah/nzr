@@ -51,7 +51,7 @@ const S = {
   obs: null, place: null,
   mq: new THREE.Quaternion(), hasMq: false, lastMotion: 0,
   iss: null, issA: null, issPass: null, issErr: false,
-  markY: -46.6753 * Math.PI / 180,
+  markY: (-90 - 46.6753) * Math.PI / 180,
   northOff: 0, hasNorth: false, backAt: null,
 };
 window.__OBS = S;
@@ -190,14 +190,12 @@ world.add(localGroup);
   her.position.set(1.15, 0, -4.4);
   her.scale.setScalar(1.0);
   her.rotation.y = -0.30;
-  // she is closer to the eye here than in the journey, so she is lit a
-  // little more generously — a body, not a shadow
+  // she stands closer to the eye here than in the journey, so her rim carries
+  // a little further — the body itself stays black
   her.traverse(o => {
     const u = o.material && o.material.uniforms;
-    if (!u || !u.uBase) return;
-    u.uBase.value.addScalar(0.018);
-    u.uCity.value.multiplyScalar(1.15);
-    u.uRim.value *= 1.25;
+    if (!u || !u.uRim) return;
+    u.uRim.value *= 1.3;
   });
   localGroup.add(her);
 }
@@ -228,7 +226,8 @@ scene.add(flight);
 const worm = buildWormhole();
 flight.add(worm);
 
-const earth = buildEarth();
+const texLoader = new THREE.TextureLoader();
+const earth = buildEarth(texLoader);
 earth.position.set(0, 0, -900);
 earth.rotation.z = 0.41;                 // her planet's tilt, roughly
 flight.add(earth);
@@ -242,9 +241,22 @@ flight.add(earth);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  flight.add(new THREE.Points(g, new THREE.PointsMaterial({
-    color: 0xdfe6ff, size: 3.4, sizeAttenuation: false,
-    transparent: true, opacity: 0.85, depthWrite: false })));
+  const sz = new Float32Array(N);
+  for (let i = 0; i < N; i++) sz[i] = Math.pow(Math.random(), 3.2) * 3.6 + 0.6;
+  g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+  flight.add(new THREE.Points(g, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `attribute float aSize; varying float vS;
+      void main(){ vS = aSize;
+        gl_PointSize = aSize;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `varying float vS;
+      void main(){
+        float r = length(gl_PointCoord - 0.5);
+        float a = smoothstep(0.5, 0.05, r);
+        gl_FragColor = vec4(vec3(0.88, 0.91, 1.0), a * 0.9);
+      }`
+  })));
 }
 
 // ---------------------------------------------------------------- catalogue
@@ -303,7 +315,7 @@ function buildSky(d) {
   const lgeo = new THREE.BufferGeometry();
   lgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(lp), 3));
   lineSeg = new THREE.LineSegments(lgeo, new THREE.LineBasicMaterial({
-    color: 0x8fa8dd, transparent: true, opacity: 0.16,
+    color: 0x8fa8dd, transparent: true, opacity: 0.085,
     blending: THREE.AdditiveBlending, depthWrite: false }));
   lineSeg.frustumCulled = false;
   skyGroup.add(lineSeg);
@@ -350,26 +362,38 @@ function buildMarks() {
 // the Moon, drawn in its true phase
 let moonMesh;
 function buildMoon() {
+  const map = texLoader.load('./tex/moon.jpg');
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
   moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(46, 46),
     new THREE.ShaderMaterial({
       transparent: true, depthWrite: false,
-      uniforms: { uPhase: { value: 1.6 } },
+      uniforms: { uPhase: { value: 1.6 }, uMap: { value: map }, uLib: { value: 0 } },
       vertexShader: `varying vec2 vUv; void main(){ vUv = uv * 2.0 - 1.0;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `uniform float uPhase; varying vec2 vUv;
-        float h(vec3 p){ return fract(sin(dot(p, vec3(12.9,78.2,45.1))) * 43758.5); }
-        float n(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-          return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),
-                     mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }
+      fragmentShader: /* glsl */`
+        uniform float uPhase, uLib; uniform sampler2D uMap;
+        varying vec2 vUv;
+        #define PI 3.14159265
         void main(){
           float r2 = dot(vUv, vUv);
           if (r2 > 1.0) discard;
-          vec3 N = vec3(vUv.x, vUv.y, sqrt(1.0 - r2));
-          vec3 L = normalize(vec3(-sin(uPhase), 0.10, -cos(uPhase)));
-          float lit = clamp(dot(N, L) * 1.7 + 0.04, 0.0, 1.0);
-          float maria = n(N * 4.5 + 3.0) * 0.6 + n(N * 11.0) * 0.4;
-          vec3 surf = mix(vec3(0.88,0.87,0.83), vec3(0.55,0.55,0.54), smoothstep(0.45,0.72,maria));
-          gl_FragColor = vec4(surf * (lit * 1.05 + 0.012), smoothstep(1.0, 0.88, r2));
+          // the disc is a sphere seen face on: unproject to get the map
+          vec3 N = vec3(vUv.x, vUv.y, sqrt(max(0.0, 1.0 - r2)));
+          vec2 uv = vec2(atan(N.x, N.z) / (2.0 * PI) + 0.5 + uLib, asin(clamp(N.y, -1.0, 1.0)) / PI + 0.5);
+          vec3 surf = texture2D(uMap, uv).rgb;
+
+          // lit by the true phase angle, with a soft terminator
+          vec3 L = normalize(vec3(-sin(uPhase), 0.06, -cos(uPhase)));
+          float lam = dot(N, L);
+          float lit = smoothstep(-0.06, 0.22, lam);
+          // the moon is a rough ball: it stays bright almost to the edge
+          lit *= 0.55 + 0.45 * pow(max(lam, 0.0), 0.35);
+          // earthshine on the dark limb
+          float ash = (1.0 - lit) * 0.030;
+
+          vec3 col = surf * (lit * 1.25 + ash);
+          gl_FragColor = vec4(col, smoothstep(1.0, 0.90, r2));
         }`
     }));
   moonMesh.visible = false;   // until it is placed, it is a 46-unit black disc
@@ -612,14 +636,68 @@ const STEPS = [
   ['scene',     'أبني القبّة…'],
   ['first',     'أفتح السقف…'],
 ];
+// ---- الصفيحة: the plate is ruled here rather than written out by hand,
+//      because a degree ring is 180 ticks and an ecliptic is a curve.
+const ARC_R = 430, ARC_LEN = 2 * Math.PI * ARC_R;
+function drawPlate() {
+  const svg = $('plate');
+  const C = 500;
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = (n, a) => { const e = document.createElementNS(ns, n);
+    for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const pol = (r, deg) => [C + r * Math.cos((deg - 90) * D2R), C + r * Math.sin((deg - 90) * D2R)];
+
+  // the limb: four concentric rules, the way a plate is bounded
+  for (const [r, cls] of [[478, 'rule'], [470, 'rule2'], [388, 'rule'], [300, 'rule']])
+    svg.appendChild(el('circle', { cx: C, cy: C, r, class: cls }));
+
+  // the degree ring, ticked every two degrees and numbered every thirty
+  for (let a = 0; a < 360; a += 2) {
+    const maj = a % 30 === 0, mid = a % 10 === 0;
+    const len = maj ? 22 : mid ? 13 : 7;
+    const [x1, y1] = pol(470, a), [x2, y2] = pol(470 - len, a);
+    svg.appendChild(el('line', { x1, y1, x2, y2, class: 'tick' + (maj ? ' maj' : '') }));
+    if (maj) {
+      const [tx, ty] = pol(444, a);
+      const t = el('text', { x: tx, y: ty, class: 'num' });
+      t.textContent = a;
+      svg.appendChild(t);
+    }
+  }
+
+  // the ecliptic, drawn as the tilted circle it is
+  svg.appendChild(el('ellipse', { cx: C, cy: C, rx: 300, ry: 300 * Math.cos(23.44 * D2R),
+    class: 'rule2', transform: `rotate(-18 ${C} ${C})` }));
+
+  // hour circles converging on the pole
+  for (let h = 0; h < 12; h++) {
+    const a = h * 30;
+    const [x1, y1] = pol(300, a), [x2, y2] = pol(-300, a);
+    svg.appendChild(el('line', { x1, y1, x2, y2, class: 'rule' }));
+  }
+  // and the almucantars: circles of equal altitude, offset for her latitude
+  for (const r of [96, 176, 246]) {
+    const c = el('circle', { cx: C, cy: C - 62, r, class: 'rule' });
+    svg.appendChild(c);
+  }
+  // the horizon, low and heavy
+  svg.appendChild(el('circle', { cx: C, cy: C - 62, r: 300, class: 'rule2' }));
+
+  // the progress arc rides the outer limb
+  const arc = el('circle', { cx: C, cy: C, r: ARC_R, class: 'arc',
+    'stroke-dasharray': `0 ${ARC_LEN}` });
+  arc.id = 'plateArc';
+  svg.appendChild(arc);
+}
+drawPlate();
+
 const done = new Set();
 function step(id) {
   if (done.has(id)) return;
   done.add(id);
   const k = done.size / STEPS.length;
-  $('bootFill').style.width = (k * 100).toFixed(0) + '%';
   $('bootPct').textContent = arNum(Math.round(k * 100)) + '٪';
-  $('bootArc').setAttribute('stroke-dasharray', `${(k * 578).toFixed(1)} 578`);
+  $('plateArc').setAttribute('stroke-dasharray', `${(k * ARC_LEN).toFixed(1)} ${ARC_LEN}`);
   const nextStep = STEPS.find(sp => !done.has(sp[0]));
   $('bootWhat').textContent = nextStep ? nextStep[1] : 'السماء جاهزة لكِ.';
   if (done.size === STEPS.length) $('bootGo').classList.add('ready');
@@ -632,9 +710,23 @@ const PHASES = [
   { id: 'worm',  t: 3.6, k: 'Traversing',      v: 'ثقبٌ دودي' },
   { id: 'earth', t: 4.4, k: 'Earth',           v: 'الأرض' },
   { id: 'dive',  t: 3.2, k: 'Riyadh',          v: 'الرياض' },
-  { id: 'yard',  t: 4.6, k: 'The Observatory', v: 'مِرصَدُكِ' },
+  { id: 'yard',  t: 6.2, k: 'The Observatory', v: 'مِرصَدُكِ' },
 ];
 let flyIdx = -1, flyStart = 0;
+window.__FLY = () => ({ idx: flyIdx, id: PHASES[flyIdx] && PHASES[flyIdx].id,
+                        t: (performance.now() - flyStart) / 1000 });
+// hold the arrival at a chosen moment, so a frame can be judged rather than caught
+window.__FLYSET = (id, frac) => {
+  const i = PHASES.findIndex(p => p.id === id);
+  if (i < 0) return false;
+  if (i >= 3) { localGroup.visible = true; skyGroup.visible = true; }
+  flight.visible = i < 3;
+  flyIdx = i; flyStart = performance.now() - frac * PHASES[i].t * 1000;
+  S.frozen = true;
+  $('capK').textContent = PHASES[i].k; $('capV').textContent = PHASES[i].v;
+  $('flight').classList.add('on');
+  return true;
+};
 
 function enterPhase(i) {
   flyIdx = i; flyStart = performance.now();
@@ -654,9 +746,10 @@ function flyFrame(now, time) {
 
   if (p.id === 'worm') {
     worm.visible = true;
-    grade.uniforms.uRush.value = 0.35 + Math.sin(k * Math.PI) * 0.5;
+    grade.uniforms.uRush.value = 0.10 + Math.sin(k * Math.PI) * 0.22;
+    bloom.strength = 0.30;
     worm.userData.mat.uniforms.uTime.value = time;
-    worm.userData.debrisMat.uniforms.uTime.value = time;
+    worm.userData.mat.uniforms.uRes.value.set(innerWidth, innerHeight);
     camera.position.set(Math.sin(time * 0.9) * 0.5, FLY_Y + Math.cos(time * 0.75) * 0.5,
       210 - ease * 420);
     camera.lookAt(0, FLY_Y, camera.position.z - 60);
@@ -664,22 +757,27 @@ function flyFrame(now, time) {
     camera.fov = 62 + Math.sin(k * Math.PI) * 32;
     camera.updateProjectionMatrix();
     const out = THREE.MathUtils.clamp((el - (p.t - 0.8)) / 0.8, 0, 1);
-    worm.userData.mat.uniforms.uFade.value = 1 - out * 0.5;
-    worm.userData.debrisMat.uniforms.uFade.value = 1 - out;
+    worm.userData.mat.uniforms.uFade.value = 1 - out;
 
   } else if (p.id === 'earth') {
     worm.visible = false;
+    bloom.strength = 0.62;
     grade.uniforms.uRush.value *= 0.90;
-    camera.position.set(0, FLY_Y, -180 - ease * 590);
+    // stop where the whole disc still fits a portrait phone's narrow field
+    camera.position.set(0, FLY_Y, -160 - ease * 400);
     camera.lookAt(0, FLY_Y, -900);
     camera.rotation.z = (1 - ease) * 0.4;
     camera.fov = 58; camera.updateProjectionMatrix();
+    earth.userData.uniforms.uTime.value = time;
+    earth.userData.uniforms.uMarkOn.value = Math.min(1, ease * 1.6);
     earth.rotation.y = S.markY + (1 - ease) * 0.55;   // turning her side towards us
 
   } else if (p.id === 'dive') {
-    camera.position.set(0, FLY_Y, -770 - ease * 92);
+    camera.position.set(0, FLY_Y, -560 - ease * 235);
     camera.lookAt(0, FLY_Y, -900);
     camera.fov = 58 - ease * 22; camera.updateProjectionMatrix();
+    earth.userData.uniforms.uTime.value = time;
+    earth.userData.uniforms.uMarkOn.value = 1;
     earth.rotation.y = S.markY;
     if (k > 0.72) {   // the last moment: the limb swallows the frame
       document.body.style.setProperty('--flash', String((k - 0.72) / 0.28));
@@ -692,7 +790,7 @@ function flyFrame(now, time) {
     $('flight').style.opacity = '';
     // she is standing there, the dome beside her. The camera holds on the dome,
     // then walks the last few metres and lifts its eyes to the sky.
-    const hold = THREE.MathUtils.clamp((ease - 0.55) / 0.45, 0, 1);
+    const hold = THREE.MathUtils.clamp((ease - 0.62) / 0.38, 0, 1);
     const lift = hold * hold * (3 - 2 * hold);
     // far enough back that the dome fits a portrait phone's narrow horizontal
     // field, which is about 21° at this focal length
@@ -705,7 +803,7 @@ function flyFrame(now, time) {
     camera.lookAt(look);
   }
 
-  if (k >= 1) enterPhase(flyIdx + 1);
+  if (k >= 1 && !S.frozen) enterPhase(flyIdx + 1);
 }
 
 // the earth's marker follows wherever she actually turned out to be
@@ -736,6 +834,9 @@ async function begin() {
   S.lat = fix.lat; S.lon = fix.lon;
   S.placed = fix.source !== 'default';
   S.obs = new Astro.Observer(S.lat, S.lon, 600);
+  if (S.placed) $('bootCat').textContent =
+    `${Math.abs(S.lat).toFixed(4)}°${S.lat >= 0 ? 'N' : 'S'} `
+    + `${Math.abs(S.lon).toFixed(4)}°${S.lon >= 0 ? 'E' : 'W'}`;
   await motion.catch(() => {});
   // give the sensor a moment to say whether it is there at all
   await new Promise(r => setTimeout(r, 700));
@@ -860,11 +961,15 @@ function paintISS() {
 $('beginBtn').addEventListener('click', () => {
   if (S.started) return;
   begin();                                  // permissions and location, in the background
-  $('boot').classList.add('gone');
-  $('skip').classList.add('on');
   localGroup.visible = false; skyGroup.visible = false;
   flight.visible = true;
-  enterPhase(0);
+  // the plate loses its light first, and the sky opens underneath it
+  document.body.classList.add('opening');
+  setTimeout(() => {
+    enterPhase(0);
+    $('skip').classList.add('on');
+    $('boot').classList.add('gone');
+  }, REDUCED ? 200 : 900);
 });
 $('skip').addEventListener('click', () => {
   if (flyIdx < 0 || flyIdx >= PHASES.length) return;

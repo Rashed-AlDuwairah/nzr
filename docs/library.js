@@ -29,12 +29,21 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const S = {
   read: new Set(),
   yaw: 0, pitch: -0.02, yawT: 0, pitchT: -0.02,
-  at: 0, walking: null,
+  at: 2, walking: null, near: null,
   open: null, busy: false, ready: false, started: false,
 };
 window.__LIB = S;
 window.__BOOKS = () => bookNodes.map(n => ({ id: n.userData.book.id, pos: n.position.toArray() }));
 window.__CAMPOS = () => camera.position.toArray();
+// A few handles the test harness drives the room with. Harmless, and they
+// are how the "fourteen opened but thirteen counted" bug was pinned down.
+window.__NSHELF = () => NSHELF;
+window.__GOTO = i => walkTo(i, true);
+window.__NEAREST = x => {
+  let best = 0, bd = 1e9;
+  SHELF_X.forEach((sx, i) => { const d = Math.abs(sx - x); if (d < bd) { bd = d; best = i; } });
+  return best;
+};
 window.__SCREEN = arr => {
   const v = new THREE.Vector3(...arr).project(camera);
   return [(v.x * 0.5 + 0.5) * innerWidth, (-v.y * 0.5 + 0.5) * innerHeight, v.z];
@@ -179,16 +188,24 @@ const bookNodes = [];
 }
 
 // ---------------------------------------------------------------- standing places
-//  Three in front of the shelves, one at the desk, one at the window.
-const SPOTS = [
-  { p: new THREE.Vector3(-1.62, 1.56, -1.02), look: new THREE.Vector3(-1.66, 1.30, -RD / 2), ar: 'الرفّ الأيسر' },
-  { p: new THREE.Vector3( 0.00, 1.56, -1.02), look: new THREE.Vector3( 0.00, 1.30, -RD / 2), ar: 'الرفّ الأوسط' },
-  { p: new THREE.Vector3( 1.62, 1.56, -1.02), look: new THREE.Vector3( 1.66, 1.30, -RD / 2), ar: 'الرفّ الأيمن' },
-  // stood back far enough to see the whole desk, and looking down at it
-  // rather than at the wall a hand's width behind it
-  { p: new THREE.Vector3( 0.00, 1.46, 0.62), look: new THREE.Vector3(0.00, 0.98, RD / 2 - 1.12), ar: 'المكتب' },
-  { p: new THREE.Vector3( 0.00, 1.54, 1.02), look: new THREE.Vector3(0.00, 1.48, RD / 2), ar: 'النافذة' },
+//  A portrait phone sees about thirty degrees across. Standing a metre and
+//  a half from a bay that is a metre and a half wide, that is under half of
+//  it — which is why most of her books were off to the sides, out of frame,
+//  and why the count kept stopping short. So she walks the wall instead:
+//  six overlapping positions along the shelves, and two places to sit.
+const SHELF_Z = -0.92;
+const SHELF_X = [-2.18, -1.31, -0.44, 0.44, 1.31, 2.18];
+const SHELF_SPOTS = SHELF_X.map(x => ({
+  p: new THREE.Vector3(x, 1.56, SHELF_Z),
+  look: new THREE.Vector3(x, 1.24, -RD / 2),
+  shelf: true,
+}));
+const PLACES = [
+  { p: new THREE.Vector3(0.00, 1.46, 0.62), look: new THREE.Vector3(0.00, 0.98, RD / 2 - 1.12), ar: 'المكتب' },
+  { p: new THREE.Vector3(0.00, 1.54, 1.02), look: new THREE.Vector3(0.00, 1.48, RD / 2), ar: 'النافذة' },
 ];
+const SPOTS = [...SHELF_SPOTS, ...PLACES];
+const NSHELF = SHELF_SPOTS.length;
 
 function faceTowards(target, from) {
   const d = target.clone().sub(from);
@@ -205,30 +222,38 @@ function walkTo(i, instant) {
     S.at = i; paintSpots(); return;
   }
   S.walking = { from: camera.position.clone(), to: spot.p.clone(), t: 0,
-                dur: 0.55 + camera.position.distanceTo(spot.p) * 0.30 };
+                dur: 0.5 + camera.position.distanceTo(spot.p) * 0.26 };
   S.yawT = aim.yaw; S.pitchT = aim.pitch;
   S.at = i;
   paintSpots();
 }
 
+function stepShelf(d) {
+  const cur = S.at < NSHELF ? S.at : 2;
+  walkTo(THREE.MathUtils.clamp(cur + d, 0, NSHELF - 1));
+}
+
 function paintSpots() {
-  const host = $('spots');
-  host.innerHTML = '';
-  SPOTS.forEach((sp, i) => {
-    const b = document.createElement('button');
-    b.className = 'spot' + (i === S.at ? ' on' : '');
-    b.textContent = sp.ar;
-    b.addEventListener('click', () => walkTo(i));
-    host.appendChild(b);
+  const onShelf = S.at < NSHELF;
+  $('shelfPos').textContent = onShelf
+    ? `${arNum(S.at + 1)} من ${arNum(NSHELF)}`
+    : `${arNum(NSHELF)} رفوف`;
+  $('shelfWrap').classList.toggle('on', onShelf);
+  $('stepL').classList.toggle('off', onShelf && S.at === 0);
+  $('stepR').classList.toggle('off', onShelf && S.at === NSHELF - 1);
+  PLACES.forEach((pl, k) => {
+    const el = $(k === 0 ? 'goDesk' : 'goWindow');
+    el.classList.toggle('on', S.at === NSHELF + k);
   });
 }
 
 // ---------------------------------------------------------------- looking
 {
-  let down = false, px = 0, py = 0, moved = 0, id = null;
+  let down = false, px = 0, py = 0, ox = 0, oy = 0, moved = 0, id = null, t0 = 0;
   const start = e => {
-    if (S.open || e.target.closest('.ui')) return;
-    down = true; id = e.pointerId; px = e.clientX; py = e.clientY; moved = 0;
+    if (S.open || (e.target.closest && e.target.closest('.ui'))) return;
+    down = true; id = e.pointerId;
+    px = ox = e.clientX; py = oy = e.clientY; moved = 0; t0 = performance.now();
   };
   const move = e => {
     if (!down || e.pointerId !== id) return;
@@ -241,7 +266,10 @@ function paintSpots() {
   const end = e => {
     if (!down || e.pointerId !== id) return;
     down = false;
-    if (moved < 8) pick(e.clientX, e.clientY);      // a tap, not a drag
+    // A thumb never lands perfectly still. Eight pixels called half her taps
+    // drags and swallowed them; a tap is short and roughly in one place.
+    const isTap = moved < 16 && performance.now() - t0 < 550;
+    if (isTap) pick(ox, oy);        // where she aimed, not where she let go
   };
   addEventListener('pointerdown', start);
   addEventListener('pointermove', move);
@@ -255,12 +283,24 @@ const ndc = new THREE.Vector2();
 
 function pick(cx, cy) {
   if (S.open || S.busy) return;
-  ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(bookNodes.map(n => n.userData.body), false);
-  if (!hits.length) return;
-  const node = bookNodes.find(n => n.userData.body === hits[0].object);
-  if (node) openBook(node);
+  const bodies = bookNodes.map(n => n.userData.body);
+  // A spine is three centimetres wide and a fingertip is not. Try where she
+  // touched, then a ring around it, before giving up.
+  const R2 = 14;
+  const tries = [[0, 0], [R2, 0], [-R2, 0], [0, R2], [0, -R2],
+                 [R2, R2], [-R2, R2], [R2, -R2], [-R2, -R2],
+                 [R2 * 2, 0], [-R2 * 2, 0]];
+  for (const [ox, oy] of tries) {
+    ndc.set(((cx + ox) / innerWidth) * 2 - 1, -((cy + oy) / innerHeight) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(bodies, false)[0];
+    if (!hit || hit.distance > 3.4) continue;
+    const node = bookNodes.find(n => n.userData.body === hit.object);
+    if (node) { openBook(node); return; }
+  }
+  // she missed the spine, but the room is already telling her which book she
+  // is looking at — open that one rather than nothing
+  if (S.near) openBook(S.near);
 }
 
 // ---------------------------------------------------------------- reading
@@ -389,16 +429,16 @@ function frame() {
   camera.rotateX(S.pitch);
 
   // the book she is looking at leans out of the shelf
-  let near = null, nearD = 1e9;
+  let near = null;
   if (!S.open) {
     ndc.set(0, 0);
     ray.setFromCamera(ndc, camera);
     const hits = ray.intersectObjects(bookNodes.map(n => n.userData.body), false);
     if (hits.length && hits[0].distance < 3.4) {
       near = bookNodes.find(n => n.userData.body === hits[0].object);
-      nearD = hits[0].distance;
     }
   }
+  S.near = near;
   for (const n of bookNodes) {
     const want = (n === near || n === S.open) ? 1 : 0;
     n.userData.pull = (n.userData.pull || 0) + (want - (n.userData.pull || 0)) * (1 - Math.exp(-dt * 8));
@@ -428,11 +468,16 @@ function frame() {
 load();
 paintCount(false);
 paintSpots();
-walkTo(1, true);
+walkTo(2, true);
 $('bkClose').addEventListener('click', closeBook);
+$('stepL').addEventListener('click', () => stepShelf(-1));
+$('stepR').addEventListener('click', () => stepShelf(1));
+$('goDesk').addEventListener('click', () => walkTo(NSHELF));
+$('goWindow').addEventListener('click', () => walkTo(NSHELF + 1));
 $('endClose').addEventListener('click', () => $('end').classList.remove('on'));
 addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.open) closeBook();
-  if (e.key >= '1' && e.key <= '5') walkTo(+e.key - 1);
+  if (e.key === 'ArrowLeft') stepShelf(-1);
+  if (e.key === 'ArrowRight') stepShelf(1);
 });
 frame();

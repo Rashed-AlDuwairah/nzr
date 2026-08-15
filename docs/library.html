@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>مكتبةُ نورة</title>
+<meta name="theme-color" content="#120d09">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='34' y='18' width='32' height='64' rx='3' fill='%23b0824a'/></svg>">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="./fonts/thmanyah.css">
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   مكتبةُ نورة
+   The room does the work. The interface is a label, a tally and a
+   page — set on the same paper the observatory's plate was printed
+   on, so the three places belong to one another.
+   ============================================================ */
+:root {
+  --display:'Thmanyah Serif Display','Aref Ruqaa',serif;
+  --ui:'Thmanyah Sans','IBM Plex Sans Arabic',system-ui,sans-serif;
+  --mono:ui-monospace,'SF Mono','Roboto Mono',Menlo,monospace;
+
+  --paper:#e7e0cf;
+  --ink:#1a1410;
+  --ink-soft:rgba(26,20,16,.56);
+  --ink-hair:rgba(26,20,16,.18);
+  --brass:#a8763c;
+
+  --room:#120d09;
+  --cream:#efe6d2;
+  --cream-soft:rgba(239,230,210,.52);
+  --cream-hair:rgba(239,230,210,.16);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+[lang="ar"], [dir="rtl"] { letter-spacing:0; }
+html, body {
+  width:100%; height:100%; overflow:hidden; background:var(--room); color:var(--cream);
+  font-family:var(--ui); font-weight:300; overscroll-behavior:none; touch-action:none;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
+}
+#view { position:fixed; inset:0; display:block; cursor:grab; }
+#view:active { cursor:grabbing; }
+
+/* ---------- the way in ---------- */
+#boot { position:fixed; inset:0; z-index:80; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2.4vh; background:var(--room);
+  transition:opacity 1.2s ease, visibility 0s linear 1.2s; }
+#boot.gone { opacity:0; visibility:hidden; pointer-events:none; }
+#boot .k { font-family:var(--mono); font-size:10px; letter-spacing:.4em;
+  text-transform:uppercase; direction:ltr; color:var(--cream-soft); }
+#boot h1 { font-family:var(--display); font-weight:400;
+  font-size:clamp(2rem,7vh,3.6rem); color:var(--cream); }
+#boot p { font-size:clamp(.8rem,1.9vh,.95rem); color:var(--cream-soft);
+  text-align:center; width:min(34ch,84vw); line-height:2; }
+
+/* ---------- the room's own chrome ---------- */
+.ui { position:fixed; z-index:20; }
+
+/* what she is standing in front of */
+#spots { top:calc(env(safe-area-inset-top,0px) + 14px); left:0; right:0;
+  display:flex; justify-content:center; gap:0; flex-wrap:wrap; }
+.spot { all:unset; cursor:pointer; padding:.55rem .95rem; position:relative;
+  font-family:var(--ui); font-weight:400; font-size:clamp(.74rem,1.7vh,.86rem);
+  color:var(--cream-soft); text-shadow:0 1px 10px #000; transition:color .3s ease; }
+.spot + .spot::after { content:''; position:absolute; right:0; top:30%; bottom:30%;
+  width:1px; background:var(--cream-hair); }
+.spot:hover { color:var(--cream); }
+.spot.on { color:var(--cream); }
+.spot.on::before { content:''; position:absolute; left:.95rem; right:.95rem; bottom:.28rem;
+  height:1px; background:var(--brass); }
+
+/* the tally, low and quiet */
+#tally { bottom:calc(env(safe-area-inset-bottom,0px) + 16px); left:0; right:0;
+  display:flex; align-items:center; justify-content:center; gap:.9rem;
+  pointer-events:none; }
+#tally.pop #count { animation:pop .8s cubic-bezier(.2,1.7,.35,1); }
+@keyframes pop { 0%{transform:scale(1);} 34%{transform:scale(1.28);} 100%{transform:scale(1);} }
+#count { font-family:var(--ui); font-weight:500; font-size:clamp(.76rem,1.7vh,.88rem);
+  color:var(--brass); text-shadow:0 1px 10px #000; display:inline-block; }
+#track { display:flex; flex-direction:row-reverse; align-items:center; gap:6px; }
+#track i { width:5px; height:16px; background:var(--cream-hair); border-radius:1px;
+  transition:background .6s ease, transform .6s cubic-bezier(.2,1.6,.4,1); }
+#track i.lit { background:var(--brass); transform:scaleY(1.18);
+  box-shadow:0 0 8px rgba(168,118,60,.7); }
+
+/* the title of whatever the middle of the screen is resting on */
+#cursor { bottom:calc(env(safe-area-inset-bottom,0px) + 52px); left:0; right:0;
+  text-align:center; pointer-events:none;
+  font-family:var(--display); font-size:clamp(.95rem,2.3vh,1.2rem); color:var(--cream);
+  text-shadow:0 1px 16px #000, 0 0 34px rgba(0,0,0,.9);
+  opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+#cursor.on { opacity:1; transform:none; }
+#cursor::after { content:''; position:absolute; left:50%; bottom:-8px; width:26px; height:1px;
+  transform:translateX(-50%); background:var(--brass); }
+
+/* a hint, only until she has opened her first book */
+#hint { bottom:calc(env(safe-area-inset-bottom,0px) + 78px); left:0; right:0;
+  text-align:center; pointer-events:none; font-size:clamp(.7rem,1.6vh,.8rem);
+  color:var(--cream-soft); text-shadow:0 1px 12px #000;
+  transition:opacity .8s ease; }
+body.read1 #hint { opacity:0; }
+
+/* ---------- a book, opened ---------- */
+#book, #end {
+  position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+  justify-content:center; padding:0 5vw;
+  opacity:0; pointer-events:none; transition:opacity .55s ease;
+  background:radial-gradient(ellipse 120% 90% at 50% 50%, rgba(10,7,5,.90), rgba(6,4,3,.97));
+}
+#book.on, #end.on { opacity:1; pointer-events:auto; }
+
+/* the page is paper — the same paper as the observatory's plate */
+.page {
+  position:relative; width:min(48ch,92vw); max-height:88vh; overflow-y:auto;
+  background:var(--paper); color:var(--ink);
+  padding:5vh clamp(1.6rem,5vw,3rem) 4vh;
+  box-shadow:0 40px 90px rgba(0,0,0,.7), 0 2px 0 rgba(255,255,255,.14) inset;
+  -webkit-overflow-scrolling:touch;
+}
+.page::before {                       /* the grain of it */
+  content:''; position:absolute; inset:0; pointer-events:none; opacity:.42;
+  mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+.page > * { position:relative; }
+.page .k { font-family:var(--mono); font-size:9px; letter-spacing:.3em;
+  text-transform:uppercase; direction:ltr; color:var(--ink-soft); display:block; }
+#bkTitle, #endT { font-family:var(--display); font-weight:400; line-height:1.25;
+  font-size:clamp(1.5rem,4.4vh,2.3rem); margin:1.4vh 0 0; }
+#bkFilm { font-size:clamp(.7rem,1.6vh,.8rem); color:var(--ink-soft); margin-top:.6vh;
+  display:block; }
+.rule { height:1px; background:var(--ink-hair); margin:2.6vh 0; position:relative; }
+.rule::before, .rule::after { content:''; position:absolute; top:-2px; width:5px; height:5px;
+  background:var(--brass); transform:rotate(45deg); }
+.rule::before { right:-2px; } .rule::after { left:-2px; }
+#bkText, #endB { font-family:var(--display); font-weight:400;
+  font-size:clamp(1rem,2.4vh,1.24rem); line-height:2.15; color:#241b14; }
+#endS { display:block; margin-top:3vh; font-family:var(--display);
+  font-size:clamp(1rem,2.4vh,1.2rem); color:var(--brass); text-align:left; }
+
+.close { all:unset; cursor:pointer; display:block; margin:3.4vh auto 0;
+  font-family:var(--ui); font-weight:500; font-size:clamp(.84rem,2vh,.96rem);
+  color:var(--ink); padding:.5rem 1.3rem .62rem; position:relative; }
+.close::before, .close::after { content:''; position:absolute; bottom:0; width:.7rem;
+  height:1px; background:var(--brass); transition:width .5s cubic-bezier(.2,.8,.2,1); }
+.close::before { right:0; } .close::after { left:0; }
+.close:hover::before, .close:hover::after { width:calc(50% - .3rem); }
+.close > i { position:absolute; left:1.3rem; right:1.3rem; bottom:0; height:1px;
+  background:var(--ink-hair); }
+
+/* the ending gets a wider, quieter page */
+#end .page { width:min(44ch,92vw); text-align:center; padding-top:6vh; }
+#end .rule::before, #end .rule::after { background:var(--brass); }
+
+@media (prefers-reduced-motion: reduce) { * { transition-duration:.01ms !important; } }
+@media (max-width:420px) {
+  .spot { padding:.5rem .62rem; font-size:.74rem; }
+  .page { padding:4vh 1.4rem 3.4vh; }
+}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="boot">
+  <span class="k">The Last Room</span>
+  <h1>مكتبةُ نورة</h1>
+  <p>أُرتّب الرفوف…</p>
+</div>
+
+<div class="ui" id="spots"></div>
+<div class="ui" id="cursor"></div>
+<div class="ui" id="hint">اسحبي بإصبعكِ لتنظري حولكِ · والمسي أي كتابٍ يعجبكِ لتفتحيه</div>
+<div class="ui" id="tally"><span id="count">٠ من ١٤</span><span id="track"></span></div>
+
+<div id="book">
+  <div class="page">
+    <span class="k" id="bkSong"></span>
+    <h2 id="bkTitle"></h2>
+    <span id="bkFilm"></span>
+    <div class="rule"></div>
+    <div id="bkText"></div>
+    <button class="close" id="bkClose">أعيديه إلى مكانه<i></i></button>
+  </div>
+</div>
+
+<div id="end">
+  <div class="page">
+    <span class="k" id="endK"></span>
+    <h2 id="endT"></h2>
+    <div class="rule"></div>
+    <div id="endB"></div>
+    <span id="endS"></span>
+    <button class="close" id="endClose">أغلقي<i></i></button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<script type="module" src="./library.js"></script>
+</body>
+</html>

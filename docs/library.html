@@ -130,8 +130,7 @@ body.read1 #hint { opacity:0; }
   text-transform:uppercase; direction:ltr; color:var(--ink-soft); display:block; }
 #bkTitle, #endT { font-family:var(--display); font-weight:400; line-height:1.25;
   font-size:clamp(1.5rem,4.4vh,2.3rem); margin:1.4vh 0 0; }
-#bkFilm { font-size:clamp(.7rem,1.6vh,.8rem); color:var(--ink-soft); margin-top:.6vh;
-  display:block; }
+.orn { display:block; color:var(--brass); font-size:.8rem; opacity:.8; }
 .rule { height:1px; background:var(--ink-hair); margin:2.6vh 0; position:relative; }
 .rule::before, .rule::after { content:''; position:absolute; top:-2px; width:5px; height:5px;
   background:var(--brass); transform:rotate(45deg); }
@@ -178,9 +177,8 @@ body.read1 #hint { opacity:0; }
 
 <div id="book">
   <div class="page">
-    <span class="k" id="bkSong"></span>
+    <span class="orn">✦</span>
     <h2 id="bkTitle"></h2>
-    <span id="bkFilm"></span>
     <div class="rule"></div>
     <div id="bkText"></div>
     <button class="close" id="bkClose">أعيديه إلى مكانه<i></i></button>
@@ -189,7 +187,7 @@ body.read1 #hint { opacity:0; }
 
 <div id="end">
   <div class="page">
-    <span class="k" id="endK"></span>
+    <span class="orn">✦</span>
     <h2 id="endT"></h2>
     <div class="rule"></div>
     <div id="endB"></div>

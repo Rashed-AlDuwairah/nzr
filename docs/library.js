@@ -46,7 +46,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.18;
+renderer.toneMappingExposure = 1.06;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -89,7 +89,7 @@ scene.add(chair);
 
 // ---------------------------------------------------------------- light
 //  One lamp does the work. Everything else is bounce and the window.
-const lamp = new THREE.PointLight(0xffc186, 7.0, 6.5, 2.0);
+const lamp = new THREE.PointLight(0xffc186, 3.4, 4.6, 2.2);
 lamp.position.copy(desk.userData.bulbPos).applyMatrix4(desk.matrixWorld);
 lamp.position.set(0.52, 1.07, RD / 2 - 1.03);
 lamp.castShadow = true;
@@ -115,8 +115,8 @@ scene.add(moon, moon.target);
 
 scene.add(new THREE.AmbientLight(0x2e2a24, 1.05));
 // a soft fill from the room side so the spines are not pure silhouette
-const fill = new THREE.PointLight(0xffc07a, 3.2, 7.0, 2.0);
-fill.position.set(0, 1.9, 0.4);
+const fill = new THREE.PointLight(0xffc07a, 4.0, 8.0, 1.9);
+fill.position.set(0, 2.0, 0.1);
 scene.add(fill);
 
 // ---------------------------------------------------------------- the books
@@ -184,8 +184,10 @@ const SPOTS = [
   { p: new THREE.Vector3(-1.62, 1.56, -1.02), look: new THREE.Vector3(-1.66, 1.30, -RD / 2), ar: 'الرفّ الأيسر' },
   { p: new THREE.Vector3( 0.00, 1.56, -1.02), look: new THREE.Vector3( 0.00, 1.30, -RD / 2), ar: 'الرفّ الأوسط' },
   { p: new THREE.Vector3( 1.62, 1.56, -1.02), look: new THREE.Vector3( 1.66, 1.30, -RD / 2), ar: 'الرفّ الأيمن' },
-  { p: new THREE.Vector3( 0.00, 1.56, 1.05), look: new THREE.Vector3( 0.00, 0.86, RD / 2 - 1.2), ar: 'المكتب' },
-  { p: new THREE.Vector3( 0.10, 1.56, 1.55), look: new THREE.Vector3( 0.05, 1.62, RD / 2), ar: 'النافذة' },
+  // stood back far enough to see the whole desk, and looking down at it
+  // rather than at the wall a hand's width behind it
+  { p: new THREE.Vector3( 0.00, 1.46, 0.62), look: new THREE.Vector3(0.00, 0.98, RD / 2 - 1.12), ar: 'المكتب' },
+  { p: new THREE.Vector3( 0.00, 1.54, 1.02), look: new THREE.Vector3(0.00, 1.48, RD / 2), ar: 'النافذة' },
 ];
 
 function faceTowards(target, from) {
@@ -268,8 +270,6 @@ function openBook(node) {
   node.userData.pull = 0;
 
   $('bkTitle').textContent = b.title;
-  $('bkSong').textContent = b.song;
-  $('bkFilm').textContent = b.film;
   $('bkText').innerHTML = b.text;
   $('book').classList.add('on');
 
@@ -313,7 +313,6 @@ function load() {
 
 // ---------------------------------------------------------------- the ending
 function finish() {
-  $('endK').textContent = FINALE.kicker;
   $('endT').textContent = FINALE.title;
   $('endB').innerHTML = FINALE.body;
   $('endS').textContent = FINALE.sign;
@@ -415,7 +414,7 @@ function frame() {
   if (S.ending) {
     const k = THREE.MathUtils.clamp((performance.now() - S.ending) / 4200, 0, 1);
     grade.uniforms.uWarm.value = k;
-    lamp.intensity = 7.0 * (1 - k * 0.55);
+    lamp.intensity = 3.4 * (1 - k * 0.55);
     shelfLight.intensity = 13.0 * (1 - k * 0.8);
     moon.intensity = 0.5 + k * 0.9;
     scene.environmentIntensity = 0.28 * (1 - k * 0.5);
